@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CONTINENTAL (Ajedrez en Guerra)</title>
+    
+    <!-- PWA Web App Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d2a20">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/main.css?v=33">
+    <link rel="stylesheet" href="css/board.css?v=33">
+
+    <!-- PeerJS for Local Network / WebRTC P2P Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" defer></script>
+</head>
+<body class="theme-war">
+
+    <div id="app-root">
+        <!-- Application Header -->
+        <header class="app-header">
+            <h1 id="app-main-title" class="brand-title" data-i18n="appTitle">CONTINENTAL</h1>
+            <p id="app-main-subtitle" class="brand-subtitle" data-i18n="appSubtitle">Ajedrez en Guerra</p>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="app-content">
+
+            <!-- MAIN MENU LANDING (Vertical Menu - Matches User Drawing) -->
+            <section id="view-main-menu" class="app-view active">
+                <div class="vertical-menu-container">
+                    
+                    <!-- BUTTON 1: Jugar -->
+                    <button id="btn-menu-jugar" class="vertical-menu-btn btn-primary-play">
+                        <span class="btn-main-title" data-i18n="menuJugar">Jugar</span>
+                    </button>
+
+                    <!-- BUTTON 2: Opciones -->
+                    <button id="btn-menu-opciones" class="vertical-menu-btn">
+                        <span class="btn-main-title" data-i18n="menuOpciones">Opciones</span>
+                    </button>
+
+                    <!-- BUTTON 3: Armería (piezas) -->
+                    <button id="btn-menu-armeria" class="vertical-menu-btn">
+                        <span class="btn-main-title" data-i18n="menuArmeria">Armeria (piezas)</span>
+                        <span class="btn-subtitle-tag" data-i18n="armoryTagline">Aquí verás cómo se mueven las piezas</span>
+                    </button>
+
+                    <!-- BUTTON 4: Reglas -->
+                    <button id="btn-menu-reglas" class="vertical-menu-btn">
+                        <span class="btn-main-title" data-i18n="menuReglas">Reglas</span>
+                    </button>
+
+                    <!-- BUTTON 5: Tutorial -->
+                    <button id="btn-menu-tutorial" class="vertical-menu-btn">
+                        <span class="btn-main-title" data-i18n="menuTutorial">Tutorial</span>
+                        <span class="btn-subtitle-tag" data-i18n="tutorialTagline">Aprende las mecánicas paso a paso</span>
+                    </button>
+
+                </div>
+            </section>
+
+            <!-- GAME PLAY VIEW -->
+            <section id="view-game" class="app-view">
+                <!-- In-Game HUD (Clocks, Turn, Status) -->
+                <div id="game-hud-container"></div>
+
+                <!-- Chess Board Outer Wrapper -->
+                <div class="board-outer-wrapper">
+                    <div id="game-board-container" class="board-frame"></div>
+                </div>
+            </section>
+
+            <!-- REGLAS VIEW -->
+            <section id="view-rules" class="app-view">
+                <button class="action-btn secondary-btn btn-back-menu" data-i18n="btnBackMenu">⬅️ Volver al Menú</button>
+                <div id="rules-content-target"></div>
+            </section>
+
+            <!-- OPCIONES VIEW -->
+            <section id="view-options" class="app-view">
+                <button class="action-btn secondary-btn btn-back-menu" data-i18n="btnBackMenu">⬅️ Volver al Menú</button>
+                <div id="options-content-target"></div>
+            </section>
+
+            <!-- ARMERÍA VIEW -->
+            <section id="view-armory" class="app-view">
+                <button class="action-btn secondary-btn btn-back-menu" data-i18n="btnBackMenu">⬅️ Volver al Menú</button>
+                <div id="armory-content-target"></div>
+            </section>
+
+            <!-- TUTORIAL VIEW -->
+            <section id="view-tutorial" class="app-view">
+                <button class="action-btn secondary-btn btn-back-menu" data-i18n="btnBackMenu">⬅️ Volver al Menú</button>
+                <div id="tutorial-content-target"></div>
+            </section>
+
+        </main>
+
+        <!-- Modal Container Overlay -->
+        <div id="modal-container"></div>
+    </div>
+
+    <!-- Application Modules with Cache Busting v42 -->
+    <script src="js/i18n.js?v=42"></script>
+    <script src="js/audio.js?v=42"></script>
+    <script src="js/engine/pieceRegistry.js?v=42"></script>
+    <script src="js/engine/pieces/standardPieces.js?v=42"></script>
+    <script src="js/engine/pieces/continentalPieces.js?v=42"></script>
+    <script src="js/engine/pieces/customPieceTemplate.js?v=42"></script>
+    <script src="js/engine/board.js?v=42"></script>
+    <script src="js/engine/rulesEngine.js?v=42"></script>
+    <script src="js/engine/aiEngine.js?v=42"></script>
+    <script src="js/engine/networkManager.js?v=42"></script>
+    <script src="js/ui/boardRenderer.js?v=42"></script>
+    <script src="js/ui/matchSetupModal.js?v=42"></script>
+    <script src="js/ui/gameController.js?v=42"></script>
+    <script src="js/ui/rulesTab.js?v=42"></script>
+    <script src="js/ui/optionsTab.js?v=42"></script>
+    <script src="js/ui/armoryTab.js?v=42"></script>
+    <script src="js/ui/tutorialTab.js?v=42"></script>
+    <script src="js/ui/menuController.js?v=42"></script>
+    <script src="js/app.js?v=42"></script>
+
+    <!-- Force Unregister All Old Service Worker Caches -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                for (let name of names) caches.delete(name);
+            });
+        }
+    </script>
+</body>
+</html>
