@@ -1,6 +1,6 @@
 /**
  * CONTINENTAL - Mobile Touch Board Renderer
- * Renders high-res chessboard matrix, algebraic notation labels, and piece image assets from 'Imagenes de las piezas'.
+ * Renders high-res chessboard matrix, algebraic notation labels, and piece image assets from 'imagenes-de-las-piezas'.
  */
 
 class BoardRenderer {
@@ -162,18 +162,18 @@ class BoardRenderer {
                         const imgEl = document.createElement('img');
                         imgEl.className = 'piece-img';
                         imgEl.alt = `${piece.color} ${piece.type}`;
-                        imgEl.src = `Imagenes de las piezas/${esName}_${style}.svg?v=31`;
+                        imgEl.src = `imagenes-de-las-piezas/${esName}_${style}.svg?v=31`;
 
                         imgEl.onerror = function() {
                             if (!this.dataset.fb1) {
                                 this.dataset.fb1 = 'true';
-                                this.src = `Imagenes de las piezas/${code}_${style}.svg?v=31`;
+                                this.src = `imagenes-de-las-piezas/${code}_${style}.svg?v=31`;
                             } else if (!this.dataset.fb2) {
                                 this.dataset.fb2 = 'true';
-                                this.src = `Imagenes de las piezas/${esName}_default.svg?v=31`;
+                                this.src = `imagenes-de-las-piezas/${esName}_default.svg?v=31`;
                             } else if (!this.dataset.fb3) {
                                 this.dataset.fb3 = 'true';
-                                this.src = `Imagenes de las piezas/${code}.svg?v=31`;
+                                this.src = `imagenes-de-las-piezas/${code}.svg?v=31`;
                             } else if (!this.dataset.fb4) {
                                 this.dataset.fb4 = 'true';
                                 this.style.display = 'none';
