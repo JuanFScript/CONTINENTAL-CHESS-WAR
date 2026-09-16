@@ -22,7 +22,15 @@ class PieceRegistry {
             category: definition.category || 'standard',
             tier: definition.tier || 'standard',
             tags: definition.tags || [],
-            octogonal: !!definition.octogonal,
+            get octogonal() {
+                if (type.toLowerCase() === 'c_arquero') {
+                    return !!(typeof window !== 'undefined' && window.CONTINENTAL_TEST_MODE);
+                }
+                return !!definition.octogonal;
+            },
+            set octogonal(val) {
+                definition.octogonal = val;
+            },
             moveSummary: definition.moveSummary || null,
             description: definition.description || { es: '', en: '' },
             getMoves: definition.getMoves || (() => []),

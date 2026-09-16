@@ -60,9 +60,28 @@
         return true;
     }
 
-    // Expose canCaptureTarget globally
+    function isDefenderShieldingAgainst(board, defPos, attackerPos) {
+        if (!board) return false;
+        const targetPiece = board.getPiece(defPos.r, defPos.c);
+        if (!targetPiece || targetPiece.type !== 'c_defensor') return false;
+        const facing = getPieceFacing(targetPiece);
+        const shieldAngles = [facing, (facing + 45) % 360, (facing + 315) % 360];
+        for (const sa of shieldAngles) {
+            const sDir = getDirVector(sa);
+            if (attackerPos.r === defPos.r + sDir.dr && attackerPos.c === defPos.c + sDir.dc) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Expose helpers globally
     PieceRegistry.canCaptureTarget = canCaptureTarget;
-    if (typeof window !== 'undefined') window.canCaptureTarget = canCaptureTarget;
+    PieceRegistry.isDefenderShieldingAgainst = isDefenderShieldingAgainst;
+    if (typeof window !== 'undefined') {
+        window.canCaptureTarget = canCaptureTarget;
+        window.isDefenderShieldingAgainst = isDefenderShieldingAgainst;
+    }
 
     /**
      * Helper for Lobo (Wolf) Pack Surge mechanics
@@ -262,11 +281,11 @@
         moveSummary: {
             m: '1 casilla hacia adelante (sólo mover a casilla vacía)',
             a: 'Sólo piezas enemigas adyacentes que hayan comido en el turno anterior',
-            e: 'Venganza: no puede atacar por iniciativa propia, sólo castigar piezas enemigas que comieron el turno previo'
+            e: 'Venganza: no puede atacar por iniciativa propia, sólo castigar piezas enemigas (incluso atacantes a distancia) que destruyeron a un aliado el turno previo'
         },
         description: {
-            es: 'Defensor de primera línea. M: Avanza 1 casilla hacia adelante si está vacía. E: Retribución: Sólo puede comer a una pieza enemiga adyacente (en sus 8 casillas alrededor) si esa pieza enemiga comió en el turno anterior.',
-            en: 'Frontline protector. M: Moves 1 square forward if empty. E: Retribution: Can only capture an adjacent enemy piece if it made a capture on the previous turn.'
+            es: 'Defensor de primera línea. M: Avanza 1 casilla hacia adelante si está vacía. E: Retribución: Sólo puede comer a una pieza enemiga adyacente (en sus 3 casillas frontales o 2 laterales) si esa pieza enemiga destruyó una unidad de tu equipo en el turno anterior (aplica también contra ataques a distancia de Arqueros, Cañones o Gigantes).',
+            en: 'Frontline protector. M: Moves 1 square forward if empty. E: Retribution: Can only capture an adjacent enemy piece (in its 3 front or 2 side squares) if it destroyed an allied unit on the previous turn (also works against ranged attacks from Archers, Cannons, or Giants).'
         },
         getMoves: (r, c, board, color, gameRules) => {
             const moves = [];
@@ -278,11 +297,10 @@
                 moves.push({ r: fRow, c, type: 'normal' });
             }
 
-            // A: Retribución en las 8 casillas adyacentes (SÓLO si la enemiga comió en el turno anterior)
+            // A: Retribución en las 3 casillas adelante y 2 a los costados (SÓLO si la enemiga comió en el turno anterior)
             const offsets = [
-                [-1, -1], [-1, 0], [-1, 1],
-                [0, -1],           [0, 1],
-                [1, -1],  [1, 0],  [1, 1]
+                [dir, -1], [dir, 0], [dir, 1], // Adelante
+                [0, -1],             [0, 1]    // Costados
             ];
             offsets.forEach(([dr, dc]) => {
                 const tr = r + dr;
@@ -314,11 +332,11 @@
         moveSummary: {
             m: '1 adelante y 1 atrás (casilla vacía)',
             a: '1 adelante y 1 atrás (capturar enemiga)',
-            e: 'Puede retroceder y contraatacar en retirada'
+            e: 'Defensa de retaguardia: protege y defiende la pieza ubicada detrás de él pudiendo contraatacar y retroceder'
         },
         description: {
-            es: 'Soldado de guardia disciplinado. M y A: Se mueve y captura 1 casilla hacia adelante y 1 casilla hacia atrás.',
-            en: 'Disciplined sentry. M and A: Moves and captures 1 square forward and 1 square backward.'
+            es: 'Soldado de guardia disciplinado. M y A: Se mueve y captura 1 casilla hacia adelante y 1 casilla hacia atrás, defendiendo activamente a la pieza que tiene detrás.',
+            en: 'Disciplined sentry. M and A: Moves and captures 1 square forward and 1 square backward, actively defending the piece behind it.'
         },
         getMoves: (r, c, board, color, gameRules) => {
             const moves = [];
@@ -610,25 +628,26 @@
         moveSummary: {
             m: 'Caballo (sin saltar) + 1 como Alfil',
             a: 'Caballo (sin saltar) + 1 como Alfil',
-            e: 'No salta: la casilla ortogonal intermedia del Caballo debe estar despejada'
+            e: 'No salta: la casilla diagonal intermedia del movimiento de Caballo debe estar despejada'
         },
         description: {
-            es: 'Bestia de guerra pesada. M y A: Movimiento de Caballo pero con trayectoria bloqueable (no puede saltar sobre piezas intermedias), más 1 casilla en diagonal.',
-            en: 'Heavy war beast. M and A: Knight movement with blockable path (cannot jump over intermediate pieces), plus 1 square diagonally.'
+            es: 'Bestia de guerra pesada. M y A: Movimiento de Caballo pero con trayectoria bloqueable (no puede saltar sobre piezas intermedias, bloqueado por diagonal), más 1 casilla en diagonal.',
+            en: 'Heavy war beast. M and A: Knight movement with blockable path (blocked if intermediate diagonal is occupied), plus 1 square diagonally.'
         },
         getMoves: (r, c, board, color, gameRules) => {
             const moves = [];
 
             // Caballo sin saltar: intermediate step MUST be empty
+            // (Bloqueado por casilla diagonal intermedia, no ortogonal)
             const knightSteps = [
-                { dr: -2, dc: -1, stepR: -1, stepC: 0 },
-                { dr: -2, dc: 1,  stepR: -1, stepC: 0 },
-                { dr: 2,  dc: -1, stepR: 1,  stepC: 0 },
-                { dr: 2,  dc: 1,  stepR: 1,  stepC: 0 },
-                { dr: -1, dc: -2, stepR: 0,  stepC: -1 },
-                { dr: 1,  dc: -2, stepR: 0,  stepC: -1 },
-                { dr: -1, dc: 2,  stepR: 0,  stepC: 1 },
-                { dr: 1,  dc: 2,  stepR: 0,  stepC: 1 }
+                { dr: -2, dc: -1, stepR: -1, stepC: -1 },
+                { dr: -2, dc: 1,  stepR: -1, stepC: 1 },
+                { dr: 2,  dc: -1, stepR: 1,  stepC: -1 },
+                { dr: 2,  dc: 1,  stepR: 1,  stepC: 1 },
+                { dr: -1, dc: -2, stepR: -1, stepC: -1 },
+                { dr: 1,  dc: -2, stepR: 1,  stepC: -1 },
+                { dr: -1, dc: 2,  stepR: -1, stepC: 1 },
+                { dr: 1,  dc: 2,  stepR: 1,  stepC: 1 }
             ];
 
             knightSteps.forEach(({ dr, dc, stepR, stepC }) => {
@@ -759,15 +778,66 @@
         moveSummary: {
             m: '1 como Torre (sólo mover a casilla vacía)',
             a: 'Caballo + distancia 2 como Torre (sin distancia 1)',
-            e: 'Dispara en vez de comer: elimina a la pieza enemiga sin moverse de su casilla'
+            e: 'Dispara en vez de comer: elimina a la pieza enemiga sin moverse de su casilla (⚠️ Modo Prueba altera su funcionamiento)'
         },
         description: {
-            es: 'Unidad de ataque a distancia. M: Avanza 1 casilla como Torre sólo si está vacía. A / E: Disparo a distancia: elimina piezas enemigas sin desplazarse en casillas de Caballo y a distancia 2 como Torre.',
-            en: 'Ranged sniper unit. M: Moves 1 square orthogonally without capturing. A / E: Ranged snipe: eliminates enemies without moving at Knight squares and distance-2 orthogonal squares.'
+            es: 'Unidad de ataque a distancia. M: Avanza 1 casilla como Torre sólo si está vacía. A / E: Disparo a distancia: elimina piezas enemigas sin desplazarse en casillas de Caballo y a distancia 2 como Torre. (⚠️ En Modo de Prueba: Se vuelve una unidad Octogonal, mueve 1 casilla en cruz y dispara a 3 casillas de frente).',
+            en: 'Ranged sniper unit. M: Moves 1 square orthogonally without capturing. A / E: Ranged snipe: eliminates enemies without moving at Knight squares and distance-2 orthogonal squares. (⚠️ Test Mode: Becomes Octogonal, moves 1 square in a cross, shoots 3 squares forward).'
         },
         getMoves: (r, c, board, color, gameRules) => {
             const moves = [];
 
+            // =========================================================================
+            // MODO DE PRUEBA: ARQUERO OCTOGONAL
+            // Mueve como cañón (1 adelante y 1 atrás en su orientación, sólo casilla vacía)
+            // Ataca a 3 casillas de frente a distancia (Disparo a distancia)
+            // =========================================================================
+            if (typeof window !== 'undefined' && window.CONTINENTAL_TEST_MODE) {
+                const thisPiece = board.getPiece(r, c);
+                const facing = getPieceFacing(thisPiece);
+                const fwd = getDirVector(facing);
+                const bwd = { dr: -fwd.dr, dc: -fwd.dc };
+                const left = getDirVector(facing + 270);
+                const right = getDirVector(facing + 90);
+                [fwd, bwd, left, right].forEach(step => {
+                    const tr = r + step.dr;
+                    const tc = c + step.dc;
+                    if (isInBounds(tr, tc, board) && board.isEmpty(tr, tc)) {
+                        moves.push({ r: tr, c: tc, type: 'normal' });
+                    }
+                });
+
+                // Ataque: 3 casillas frontales según su orientación (Disparo a distancia: no se mueve)
+                const ARCHER_TEST_ATTACKS = {
+                    0:   [ [-2, -1], [-2, 0], [-2, 1] ],
+                    45:  [ [-2, 1],  [-2, 2], [-1, 2] ],
+                    90:  [ [-1, 2],  [0, 2],  [1, 2] ],
+                    135: [ [1, 2],   [2, 2],  [2, 1] ],
+                    180: [ [2, 1],   [2, 0],  [2, -1] ],
+                    225: [ [2, -1],  [2, -2], [1, -2] ],
+                    270: [ [1, -2],  [0, -2], [-1, -2] ],
+                    315: [ [-1, -2], [-2, -2],[-2, -1] ]
+                };
+
+                const normFacing = ((facing % 360) + 360) % 360;
+                const matchAngle = Object.keys(ARCHER_TEST_ATTACKS).find(a => Math.abs(Number(a) - normFacing) < 22.5) ?? 0;
+                const offsets = ARCHER_TEST_ATTACKS[matchAngle] || ARCHER_TEST_ATTACKS[0];
+
+                offsets.forEach(([dr, dc]) => {
+                    const tr = r + dr;
+                    const tc = c + dc;
+                    if (isInBounds(tr, tc, board)) {
+                        const p = board.getPiece(tr, tc);
+                        if (p && canCaptureTarget(color, { r, c }, p, { r: tr, c: tc }, board)) {
+                            moves.push({ r: tr, c: tc, type: 'capture', isRanged: true, isSpecialAttackTarget: true });
+                        }
+                    }
+                });
+
+                return moves;
+            }
+
+            // Modo Oficial Normal:
             // M: 1 como torre (sólo a casilla vacía, NO puede comer a distancia 1)
             const orthoDirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
             orthoDirs.forEach(([dr, dc]) => {
@@ -822,12 +892,12 @@
         tags: ['Continental', 'Octogonal', 'Escudo Frontal'],
         moveSummary: {
             m: 'Como Rey (1 casilla en cualquier dirección a casilla vacía)',
-            a: 'Como Rey excepto las 3 casillas protegidas por su escudo (N, NE, NW)',
-            e: 'Escudo invulnerable: las piezas enemigas situadas al N, NE y NW de su orientación no pueden comerlo'
+            a: 'Puede comer en 5 direcciones (lados y atrás). No puede atacar donde apunta su escudo',
+            e: 'Escudo invulnerable: inmune a capturas de piezas enemigas adyacentes a las que apunta con sus flechas'
         },
         description: {
-            es: 'Guardián acorazado con escudo frontal. M: Se mueve como Rey a cualquier casilla vecina vacía. E: Escudo: Es inmune a capturas de piezas enemigas situadas en su frente (Norte, Nor-Este y Nor-Oeste).',
-            en: 'Shielded sentinel. M: Moves like a King to empty adjacent squares. E: Shield: Immune to captures from enemies in front (North, North-East, and North-West).'
+            es: 'Guardián acorazado con escudo frontal. M: Se mueve como Rey a cualquier casilla vecina vacía. A: Ataca a piezas enemigas adyacentes, excepto en las 3 direcciones que protege su escudo. E: Escudo: Inmune a ser comido por piezas enemigas adyacentes ubicadas en las direcciones hacia donde apuntan sus flechas.',
+            en: 'Shielded sentinel. M: Moves like a King to empty adjacent squares. A: Captures adjacent enemy units, except in its 3 shield directions. E: Shield: Immune to captures from adjacent enemies in the direction of its arrows.'
         },
         getMoves: (r, c, board, color, gameRules) => {
             const moves = [];
@@ -848,11 +918,9 @@
                 if (isInBounds(tr, tc, board)) {
                     const isShieldDir = shieldOffsets.some(so => so.dr === dr && so.dc === dc);
 
-                    // M: como rey (sólo a casilla vacía)
                     if (board.isEmpty(tr, tc)) {
                         moves.push({ r: tr, c: tc, type: 'normal' });
                     } else if (!isShieldDir) {
-                        // A: como rey excepto en las 3 casillas de su escudo
                         const p = board.getPiece(tr, tc);
                         if (p && canCaptureTarget(color, { r, c }, p, { r: tr, c: tc }, board)) {
                             moves.push({ r: tr, c: tc, type: 'capture' });
@@ -877,12 +945,12 @@
         tags: ['Continental', 'Octogonal', 'Bombardeo en Línea'],
         moveSummary: {
             m: '1 adelante y 1 atrás en su orientación (a casilla vacía)',
-            a: 'Bombardeo frontal: destruye TODAS las piezas en su rango (hasta 3 casillas)',
+            a: 'Bombardeo frontal: destruye TODAS las piezas en su rango (hasta 3 casillas, Defensor adyacente sobrevive de frente)',
             e: 'Cooldown: no puede disparar 2 turnos seguidos. Flecha roja cuando está listo, gris en recarga'
         },
         description: {
-            es: 'Artillería pesada devastadora. M: Avanza 1 adelante o 1 atrás según hacia dónde apunte. E: Bombardeo frontal: Destruye simultáneamente a TODAS las piezas (aliadas y enemigas) en su línea de visión hasta 3 casillas. Cooldown de 1 turno.',
-            en: 'Heavy siege artillery. M: Moves 1 square forward or backward along its facing axis. E: Frontal blast: Obliterates ALL pieces (friendly or enemy) in its path up to 3 squares. 1-turn cooldown.'
+            es: 'Artillería pesada devastadora. M: Avanza 1 adelante o 1 atrás según hacia dónde apunte. E: Bombardeo frontal: Destruye simultáneamente a TODAS las piezas (aliadas y enemigas) en su línea de visión hasta 3 casillas. (Un Defensor enemigo adyacente sobrevive de frente al disparo). Cooldown de 1 turno.',
+            en: 'Heavy siege artillery. M: Moves 1 square forward or backward along its facing axis. E: Frontal blast: Obliterates ALL pieces (friendly or enemy) in its path up to 3 squares. (An adjacent defending Defender survives the blast). 1-turn cooldown.'
         },
         getMoves: (r, c, board, color, gameRules) => {
             const moves = [];
@@ -901,7 +969,7 @@
             });
 
             // E: Rayo destructor si NO está en cooldown y hay al menos 1 objetivo en línea
-            const isOnCooldown = thisPiece && (thisPiece.usedBeamLastTurn === true || thisPiece.beamCooldown > 0);
+            const isOnCooldown = thisPiece && (thisPiece.justFired === true || thisPiece.cooldownActive === true || thisPiece.usedBeamLastTurn === true || thisPiece.beamCooldown > 0);
             if (!isOnCooldown) {
                 let hasTargets = false;
                 for (let s = 1; s <= 3; s++) {
@@ -938,12 +1006,26 @@
             if (!board.isInBounds(tr, tc)) break;
             const target = board.getPiece(tr, tc);
             if (target) {
+                // Check Defensor adjacent shield block
+                if (s === 1 && target.type === 'c_defensor') {
+                    const defFacing = getPieceFacing(target);
+                    const shieldAngles = [defFacing, (defFacing + 45) % 360, (defFacing + 315) % 360];
+                    const shieldOffsets = shieldAngles.map(a => getDirVector(a));
+                    const attackDirFromDef = { dr: -fwd.dr, dc: -fwd.dc };
+                    const isDefending = shieldOffsets.some(so => so.dr === attackDirFromDef.dr && so.dc === attackDirFromDef.dc);
+                    if (isDefending) {
+                        // El Defensor sobrevive al rayo (pero no frena el resto del disparo)
+                        continue;
+                    }
+                }
                 destroyed.push({ r: tr, c: tc, piece: target });
                 board.setPiece(tr, tc, null);
             }
         }
 
+        piece.justFired = true;
         piece.usedBeamLastTurn = true;
+        piece.cooldownActive = false;
         return { destroyed };
     };
 
@@ -1122,11 +1204,11 @@
         moveSummary: {
             m: 'Como Rey (1 casilla en cualquier dirección a casilla vacía)',
             a: 'Como Rey (puede comer enemigas Y piezas propias)',
-            e: 'Fuerza colosal: al seleccionar una pieza adyacente puede elegir Devorarla, Intercambiar lugares, o Arrojarla a 1 casilla de distancia alrededor de ella. Al lanzar, el gigante no se mueve.'
+            e: 'Fuerza colosal: al seleccionar una pieza adyacente puede elegir Devorarla o Arrojarla a 1 casilla de distancia alrededor de ella. Si arroja una pieza sobre otra, ambas mueren.'
         },
         description: {
-            es: 'Titán de fuerza colosal. M: 1 casilla vacía en cualquier dirección. E: Al interactuar con una pieza adyacente (aliada o enemiga) puede elegir devorarla, intercambiar lugares con ella, o arrojarla por el aire a 1 casilla de distancia alrededor de ella aplastando lo que haya en la casilla de destino. Al lanzar, el gigante no se mueve.',
-            en: 'Colossal titan. M: 1 empty square in any direction. E: Can devour adjacent pieces, swap places with them, or throw them 1 square away around the target without moving.'
+            es: 'Titán de fuerza colosal. M: 1 casilla vacía en cualquier dirección. E: Al interactuar con una pieza adyacente (aliada o enemiga) puede elegir Devorarla o Arrojarla por el aire. Si lanza la pieza sobre una casilla ocupada, la pieza lanzada y la pieza impactada mueren aplastradas mutuamente. Al lanzar, el Gigante no se mueve.',
+            en: 'Colossal titan. M: 1 empty square in any direction. E: Can Devour adjacent pieces or Throw them 1 square away. If thrown onto another piece, both the thrown piece and the target piece are destroyed. The Giant does not move when throwing.'
         },
         getMoves: (r, c, board, color, gameRules) => {
             const moves = [];

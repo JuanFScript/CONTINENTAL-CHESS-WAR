@@ -150,7 +150,7 @@ const ArmoryTab = {
         container.innerHTML = pieces.map(p => {
             const svg = svgMap[p.type];
             const iconHtml = svg 
-                ? `<img src="Imagenes de las piezas/${svg}.svg" class="chip-img-icon" alt="${p.type}">`
+                ? `<img src="Imagenes de las piezas/${svg}.svg" class="chip-img-icon" alt="${p.type}" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src=this.src.replace('Imagenes%20de%20las%20piezas','imagenes-de-las-piezas').replace('Imagenes de las piezas','imagenes-de-las-piezas');}">`
                 : `<span class="chip-symbol">${p.symbol}</span>`;
             const octoHtml = p.octogonal ? `<span class="chip-tag-octo">Octo</span>` : '';
 
@@ -336,7 +336,7 @@ const ArmoryTab = {
         card.innerHTML = `
             <div class="card-hero">
                 <div class="hero-icon-container">
-                    ${svg ? `<img src="Imagenes de las piezas/${svg}.svg" class="hero-piece-img" alt="${p.name.es}">` : `<span class="hero-piece-symbol">${p.symbol}</span>`}
+                    ${svg ? `<img src="Imagenes de las piezas/${svg}.svg" class="hero-piece-img" alt="${p.name.es}" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src=this.src.replace('Imagenes%20de%20las%20piezas','imagenes-de-las-piezas').replace('Imagenes de las piezas','imagenes-de-las-piezas');}">` : `<span class="hero-piece-symbol">${p.symbol}</span>`}
                 </div>
                 <div class="hero-text">
                     <h2>${p.name[lang] || p.name.es}</h2>

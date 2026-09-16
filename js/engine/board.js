@@ -231,6 +231,7 @@ class BoardEngine {
                 type: special.promoteTo || 'q', 
                 color: piece.color, 
                 moved: true,
+                promoted: true,
                 facing: piece.facing ?? (piece.color === 'w' ? 0 : 180)
             };
         } else {

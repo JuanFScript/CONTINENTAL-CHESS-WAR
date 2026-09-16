@@ -59,7 +59,7 @@ const MatchSetupModal = {
         const modalHtml = `
             <div id="match-setup-modal" class="modal-overlay modal-active">
                 <div class="modal-card match-setup-card animate-pop-in">
-                    <button class="btn-back-menu" id="btn-close-setup" style="background: none; border: none; color: #9ca3af; font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 5px; padding: 5px; margin-bottom: 10px;" data-i18n="btnBackMenu">${I18n.get('btnBackMenu')}</button>
+                    <button class="action-btn secondary-btn small-btn btn-back-menu" id="btn-close-setup" style="margin-bottom: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 10px;" data-i18n="btnBackMenu">${I18n.get('btnBackMenu') || '⬅️ Volver al Menú'}</button>
                     <h2 class="setup-title" data-i18n="setupMatchTitle">${I18n.get('setupMatchTitle')}</h2>
                     
                     <div class="setup-scroll-area">

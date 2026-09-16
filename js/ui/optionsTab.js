@@ -9,6 +9,7 @@ const OptionsTab = {
         const currentPieceStyle = localStorage.getItem('continental_piece_style') || 'default';
         const currentCenterTurns = localStorage.getItem('continental_center_turns') || '3';
         const currentCenterConsecutive = localStorage.getItem('continental_center_consecutive') !== 'false';
+        const currentTestMode = localStorage.getItem('continental_test_mode') === 'true';
 
         const html = `
             <div class="options-container animate-fade-in">
@@ -118,6 +119,22 @@ const OptionsTab = {
                         </div>
                     </div>
 
+                    <!-- MODO DE PRUEBA -->
+                    <div class="setting-row">
+                        <div class="setting-label">
+                            <strong style="color: #f59e0b;">🧪 Modo de prueba</strong>
+                            <span class="setting-sub" style="color: #9ca3af; font-size: 0.8rem; line-height: 1.3; display: block; margin-top: 3px;">
+                                Al activar esta opcion, ciertas reglas y piezas cambiaran a versiones de prueba, que pueden o no llegar a formar parte del juego final. Lo mas probable es estas . Usar bajo tu propio riesgo.
+                            </span>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="opt-test-mode-toggle" ${currentTestMode ? 'checked' : ''}>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
                     <div id="opt-status-notice" class="status-notice"></div>
 
                     <!-- SAVE BUTTON -->
@@ -157,6 +174,7 @@ const OptionsTab = {
             const pieceStyleSelect = document.getElementById('opt-piece-style-select');
             const centerTurnsSelect = document.getElementById('opt-center-turns-select');
             const centerConsecutiveToggle = document.getElementById('opt-center-consecutive-toggle');
+            const testModeToggle = document.getElementById('opt-test-mode-toggle');
 
             if (langSelect) I18n.setLanguage(langSelect.value);
             if (soundToggle) {
@@ -182,6 +200,12 @@ const OptionsTab = {
             if (centerConsecutiveToggle) {
                 localStorage.setItem('continental_center_consecutive', centerConsecutiveToggle.checked);
             }
+            if (testModeToggle) {
+                const isTestMode = testModeToggle.checked;
+                localStorage.setItem('continental_test_mode', isTestMode);
+                window.CONTINENTAL_TEST_MODE = isTestMode;
+                window.dispatchEvent(new CustomEvent('continental:testModeChanged', { detail: { enabled: isTestMode } }));
+            }
 
             const notice = document.getElementById('opt-status-notice');
             if (notice) {
@@ -191,3 +215,8 @@ const OptionsTab = {
         });
     }
 };
+
+if (typeof window !== 'undefined') {
+    window.CONTINENTAL_TEST_MODE = (localStorage.getItem('continental_test_mode') === 'true');
+}
+

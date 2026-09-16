@@ -181,16 +181,16 @@ const I18n = {
                         <p>En su turno, cada jugador puede realizar una de las siguientes acciones:</p>
                         <ul>
                             <li><strong>Mover y Rotar:</strong> Desplazar una pieza y elegir hacia dónde apuntará en 8 direcciones si es Octogonal.</li>
-                            <li><strong>Pasar Turno y Rotar:</strong> Ceder la iniciativa y rotar cualquier pieza octogonal propia a elección.</li>
+                            <li><strong>Pasar Turno o Pasar y Rotar:</strong> Puedes ceder la iniciativa directamente, o rotar cualquier pieza octogonal propia a elección antes de pasar el turno (incluso si no tienes piezas octogonales, puedes pasar el turno sin problemas).</li>
                             <li><strong>Usar Habilidad y Rotar:</strong> Activar la habilidad especial de una unidad (sólo si hay un objetivo válido) y luego rotarla.</li>
                         </ul>
                         <p><strong>Mecánicas Especiales de Unidades:</strong></p>
                         <ul>
-                            <li><strong>Rey (♚):</strong> Vale 6 puntos en lugar de 3. Esto significa que puedes sacrificar todo tu ejército (excepto el Rey) y aún así mantener 6 puntos para ganar. Además, en modos donde no se gana por puntos (ej: Captura el Centro), iniciar con un Rey te otorga 3 Puntos de Refuerzo adicionales desde el turno 1.</li>
-                            <li><strong>Cañón (💣):</strong> Destruye simultáneamente a TODAS las piezas (aliadas o enemigas) en su línea frontal de hasta 3 casillas. Tiene un cooldown de 1 turno (flecha roja lista, gris en recarga).</li>
+                            <li><strong>Rey (♚):</strong> Vale 6 puntos en lugar de 3. Esto significa que puedes sacrificar todo tu ejército (excepto el Rey) y aún así mantener 6 puntos para ganar. Además, en modos donde no se gana por puntos (ej: Captura el Centro), iniciar con un Rey te otorga 4 Puntos de Refuerzo adicionales desde el turno 1.</li>
+                            <li><strong>Cañón (💣):</strong> Destruye simultáneamente a TODAS las piezas (aliadas o enemigas) en su línea frontal de hasta 3 casillas. Tiene un cooldown de 1 turno (flecha roja lista en tu turno, gris tras disparar, amarilla en recarga/advertencia de peligro).</li>
                             <li><strong>Mago (🧙):</strong> Puede rotar entre Postura de Soldado y Postura de Mercenario. Al atacar una pieza enemiga, un pop-up permite elegir entre <em>Disparar Hechizo</em> (a distancia sin moverse) o <em>Comer</em> (desplazándose a la casilla).</li>
-                            <li><strong>Gigante (🗿):</strong> Al interactuar con una pieza adyacente (aliada o enemiga), puede elegir entre <em>Devorarla</em>, <em>Intercambiar</em> lugares con ella, o <em>Arrojarla</em> por el aire a 1 casilla alrededor sin moverse.</li>
-                            <li><strong>Defensor (🔰):</strong> Su escudo lateral invulnerable cubre las 3 casillas de su flanco izquierdo respecto a su orientación actual.</li>
+                            <li><strong>Gigante (🗿):</strong> Al interactuar con una pieza adyacente (aliada o enemiga), puede elegir entre <em>Devorarla</em> o <em>Arrojarla</em> por el aire a 1 casilla alrededor sin moverse. Si arroja una pieza sobre otra, ambas mueren aplastadas.</li>
+                            <li><strong>Defensor (🔰):</strong> Su escudo invulnerable lo protege de ser comido por piezas enemigas adyacentes ubicadas en las 3 direcciones hacia donde apuntan sus flechas. Puede comer piezas enemigas en cualquiera de las 5 casillas adyacentes restantes (a sus lados y atrás).</li>
                             <li><strong>Dragón (🐉):</strong> Vuela a 7 posiciones frontales relativas a hacia dónde apunta.</li>
                         </ul>
                     </section>
@@ -395,16 +395,16 @@ const I18n = {
                         <p>On your turn, you can take one of the following actions:</p>
                         <ul>
                             <li><strong>Move and Rotate:</strong> Move a piece and choose its 8-direction orientation if Octogonal.</li>
-                            <li><strong>Pass Turn and Rotate:</strong> Forfeit your move and rotate any of your Octogonal units.</li>
+                            <li><strong>Pass Turn or Pass and Rotate:</strong> Forfeit your turn directly, or rotate any of your Octogonal units before passing (you can pass freely even without octogonal pieces).</li>
                             <li><strong>Use Ability and Rotate:</strong> Fire a unit's special power (only if a valid target exists) and then rotate.</li>
                         </ul>
                         <p><strong>Unit Special Mechanics:</strong></p>
                         <ul>
-                            <li><strong>King (♚):</strong> Worth 6 points instead of 3. This means you can sacrifice your entire army (except the King) and still have 6 points to win. Also, in modes without point victory (like Center Capture), starting with a King grants you 3 Reinforcement Points from turn 1.</li>
-                            <li><strong>Cannon (💣):</strong> Obliterates ALL units (friendly or enemy) in its forward line of sight up to 3 squares simultaneously. 1-turn cooldown (red arrow ready, gray during cooldown).</li>
+                            <li><strong>King (♚):</strong> Worth 6 points instead of 3. This means you can sacrifice your entire army (except the King) and still have 6 points to win. Also, in modes without point victory (like Center Capture), starting with a King grants you 4 Reinforcement Points from turn 1.</li>
+                            <li><strong>Cannon (💣):</strong> Obliterates ALL units (friendly or enemy) in its forward line of sight up to 3 squares simultaneously. 1-turn cooldown (red arrow ready on your turn, gray after firing, yellow during cooldown/danger warning).</li>
                             <li><strong>Mage (🧙):</strong> Stance switches between Soldier and Mercenary. When capturing, a popup allows choosing between <em>Shoot Spell</em> (at range without moving) or <em>Eat</em> (moving to the square).</li>
-                            <li><strong>Giant (🗿):</strong> When targeting adjacent units (friendly or enemy), choose between <em>Devour</em>, <em>Swap</em> places, or <em>Throw</em> 1 square away around the grabbed piece without moving.</li>
-                            <li><strong>Defender (🔰):</strong> Left flank invulnerable shield protects the 3 squares relative to its current facing.</li>
+                            <li><strong>Giant (🗿):</strong> When targeting adjacent units (friendly or enemy), choose between <em>Devour</em> or <em>Throw</em> 1 square away around the grabbed piece without moving. If thrown onto another piece, both are destroyed.</li>
+                            <li><strong>Defender (🔰):</strong> Its invulnerable shield protects it from being captured by adjacent enemies in the 3 directions of its arrows. Can capture adjacent enemy units in any direction except those 3 shield directions.</li>
                             <li><strong>Dragon (🐉):</strong> Leaps over any obstacle to 7 forward positions relative to its facing.</li>
                         </ul>
                     </section>

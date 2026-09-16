@@ -1,12 +1,13 @@
 /**
  * CONTINENTAL - Mobile Touch Board Renderer
- * Renders high-res chessboard matrix, algebraic notation labels, and piece image assets from 'imagenes-de-las-piezas'.
+ * Renders high-res chessboard matrix, algebraic notation labels, and piece image assets from 'Imagenes de las piezas'.
  */
 
 class BoardRenderer {
     constructor(containerElement, boardEngine, options = {}) {
         this.container = containerElement;
         this.board = boardEngine;
+        this.options = options;
         this.selectedSquare = null;
         this.validMoves = [];
         this.enemySelectedSquare = null;
@@ -15,6 +16,19 @@ class BoardRenderer {
         this.lastMove = null;
         this.onSquareClick = options.onSquareClick || null;
         this.flipped = false;
+    }
+
+    getActiveColor() {
+        if (this.options && typeof this.options.getActiveColor === 'function') {
+            return this.options.getActiveColor();
+        }
+        if (this.options && this.options.rulesEngine) {
+            return this.options.rulesEngine.activeColor;
+        }
+        if (typeof window !== 'undefined' && window.gameController && window.gameController.rulesEngine) {
+            return window.gameController.rulesEngine.activeColor;
+        }
+        return 'w';
     }
 
     render() {
@@ -162,20 +176,32 @@ class BoardRenderer {
                         const imgEl = document.createElement('img');
                         imgEl.className = 'piece-img';
                         imgEl.alt = `${piece.color} ${piece.type}`;
-                        imgEl.src = `imagenes-de-las-piezas/${esName}_${style}.svg?v=31`;
+                        imgEl.src = `Imagenes de las piezas/${esName}_${style}.svg?v=73`;
 
                         imgEl.onerror = function() {
                             if (!this.dataset.fb1) {
                                 this.dataset.fb1 = 'true';
-                                this.src = `imagenes-de-las-piezas/${code}_${style}.svg?v=31`;
+                                this.src = `imagenes-de-las-piezas/${esName}_${style}.svg?v=73`;
                             } else if (!this.dataset.fb2) {
                                 this.dataset.fb2 = 'true';
-                                this.src = `imagenes-de-las-piezas/${esName}_default.svg?v=31`;
+                                this.src = `Imagenes de las piezas/${code}_${style}.svg?v=73`;
                             } else if (!this.dataset.fb3) {
                                 this.dataset.fb3 = 'true';
-                                this.src = `imagenes-de-las-piezas/${code}.svg?v=31`;
+                                this.src = `imagenes-de-las-piezas/${code}_${style}.svg?v=73`;
                             } else if (!this.dataset.fb4) {
                                 this.dataset.fb4 = 'true';
+                                this.src = `Imagenes de las piezas/${esName}_default.svg?v=73`;
+                            } else if (!this.dataset.fb5) {
+                                this.dataset.fb5 = 'true';
+                                this.src = `imagenes-de-las-piezas/${esName}_default.svg?v=73`;
+                            } else if (!this.dataset.fb6) {
+                                this.dataset.fb6 = 'true';
+                                this.src = `Imagenes de las piezas/${code}.svg?v=73`;
+                            } else if (!this.dataset.fb7) {
+                                this.dataset.fb7 = 'true';
+                                this.src = `imagenes-de-las-piezas/${code}.svg?v=73`;
+                            } else if (!this.dataset.fb8) {
+                                this.dataset.fb8 = 'true';
                                 this.style.display = 'none';
                                 const fallbackSym = reg ? reg.symbol : piece.type;
                                 const symSpan = document.createElement('span');
@@ -231,13 +257,22 @@ class BoardRenderer {
         let typePattern = 'forward'; // 'forward', 'defensor_left', 'mago'
 
         if (piece.type === 'c_canon') {
-            colorHex = piece.cooldownActive ? '#6b7280' : '#ef4444'; // Red when ready, Gray when cooling down
+            if (piece.justFired) {
+                colorHex = '#6b7280'; // Gris inmediatamente tras disparar
+            } else if (piece.cooldownActive) {
+                colorHex = '#f59e0b'; // Amarillo durante el turno de recarga y aviso previo al rival
+            } else {
+                colorHex = '#ef4444'; // Rojo (cargado/listo para disparar, se mantiene rojo sin cambiar)
+            }
             typePattern = 'forward';
         } else if (piece.type === 'c_defensor') {
             colorHex = '#3b82f6'; // Blue for Defensor shield
             typePattern = 'defensor_front_fan';
         } else if (piece.type === 'c_dragon') {
             colorHex = '#f59e0b'; // Amarillo para el dragón
+            typePattern = 'forward';
+        } else if (piece.type === 'c_arquero') {
+            colorHex = '#f59e0b'; // Amarillo para el arquero en modo de prueba
             typePattern = 'forward';
         } else if (piece.type === 'c_mago') {
             colorHex = '#f59e0b'; // Yellow for Mago

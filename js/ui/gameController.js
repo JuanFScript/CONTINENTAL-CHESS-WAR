@@ -11,6 +11,7 @@ class GameController {
         this.boardEngine = new BoardEngine(8, 8);
         this.rulesEngine = new RulesEngine(this.boardEngine);
         this.boardRenderer = new BoardRenderer(this.boardContainer, this.boardEngine, {
+            rulesEngine: this.rulesEngine,
             onSquareClick: (r, c) => this.handleSquareClick(r, c)
         });
 
@@ -57,6 +58,7 @@ class GameController {
 
         this.matchOptions = options;
         this.isGameOver = false;
+        this.isClockPaused = false;
         this.selectedSquare = null;
         this.selectedLegalMoves = [];
         this.centerStreak = { w: 0, b: 0 };
@@ -68,6 +70,7 @@ class GameController {
         this.boardEngine = new BoardEngine(rows, cols);
         this.rulesEngine = new RulesEngine(this.boardEngine, { isContinental });
         this.boardRenderer = new BoardRenderer(this.boardContainer, this.boardEngine, {
+            rulesEngine: this.rulesEngine,
             onSquareClick: (r, c) => this.handleSquareClick(r, c)
         });
 
@@ -238,10 +241,10 @@ class GameController {
 
             if (this.matchOptions?.submode === 'continental_captura_centro') {
                 const wCom = this.boardEngine.getPiece(6, 3);
-                if (wCom && wCom.type === 'c_rey') this.reinforcementsBank.w += 3;
+                if (wCom && wCom.type === 'c_rey') this.reinforcementsBank.w += 4;
                 
                 const bCom = this.boardEngine.getPiece(0, 3);
-                if (bCom && bCom.type === 'c_rey') this.reinforcementsBank.b += 3;
+                if (bCom && bCom.type === 'c_rey') this.reinforcementsBank.b += 4;
             }
 
             this.boardRenderer.render();
@@ -250,9 +253,9 @@ class GameController {
 
             if (this.matchOptions?.submode === 'continental_gran_ejercito') {
                 this.openPlacementModal('w', 4, (remW) => {
-                    this.reinforcementsBank.w = remW;
+                    this.reinforcementsBank.w += remW;
                     this.openPlacementModal('b', 4, (remB) => {
-                        this.reinforcementsBank.b = remB;
+                        this.reinforcementsBank.b += remB;
                         this.boardRenderer.render();
                         this.renderHUD();
                         if (this.whiteTime > 0) this.startClock();
@@ -298,16 +301,138 @@ class GameController {
         });
     }
 
+    createModalHeaderHtml(side = null) {
+        const isWhite = side === 'w';
+        const isBlack = side === 'b';
+        let sideBadgeHtml = '';
+        if (isWhite) {
+            sideBadgeHtml = `
+                <div style="background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.35); color: #ffffff; padding: 5px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 0 12px rgba(255,255,255,0.25); margin-bottom: 8px;">
+                    <span>⚪</span> <span>SELECCIÓN: TURNO DE LAS BLANCAS</span>
+                </div>
+            `;
+        } else if (isBlack) {
+            sideBadgeHtml = `
+                <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(168, 85, 247, 0.6); color: #e9d5ff; padding: 5px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 0 12px rgba(168,85,247,0.35); margin-bottom: 8px;">
+                    <span>⚫</span> <span>SELECCIÓN: TURNO DE LAS NEGRAS</span>
+                </div>
+            `;
+        }
+
+        const hasClock = (this.matchOptions && (this.matchOptions.timeMinutes > 0 || this.matchOptions.timeSeconds > 0));
+        const clockText = hasClock
+            ? `<div class="modal-live-clock" style="font-size: 0.8rem; background: rgba(0,0,0,0.45); padding: 4px 12px; border-radius: 12px; color: #a7f3d0; border: 1px solid rgba(255,255,255,0.12); margin-bottom: 10px; display: inline-block; font-weight: bold;">
+                ⏱️ Tiempo restante — ⚪ ${this.formatTime(this.whiteTime)} | ⚫ ${this.formatTime(this.blackTime)}
+               </div>`
+            : '';
+
+        return `
+            <div class="modal-header-section" style="width: 100%; text-align: center; margin-bottom: 8px;">
+                ${sideBadgeHtml}
+                ${clockText}
+            </div>
+        `;
+    }
+
+    attachBoardInspectionBehavior(modal, sideName = 'Elección de Piezas', reinforcementPoints = null) {
+        const viewBoardBtn = modal.querySelector('.btn-modal-view-board');
+        if (!viewBoardBtn) return;
+
+        viewBoardBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+            this.showBoardInspectionOverlay(modal, sideName, reinforcementPoints);
+        });
+    }
+
+    showBoardInspectionOverlay(modal, sideName, reinforcementPoints = null) {
+        if (document.getElementById('modal-board-inspection-bar')) return;
+
+        // Block all board interactions & HUD clicks while inspecting
+        const blocker = document.createElement('div');
+        blocker.id = 'modal-board-inspection-blocker';
+        blocker.style.position = 'fixed';
+        blocker.style.top = '0';
+        blocker.style.left = '0';
+        blocker.style.width = '100vw';
+        blocker.style.height = '100vh';
+        blocker.style.zIndex = '99998';
+        blocker.style.background = 'rgba(0,0,0,0.01)';
+        blocker.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+        }, true);
+        document.body.appendChild(blocker);
+
+        const bar = document.createElement('div');
+        bar.id = 'modal-board-inspection-bar';
+        bar.style.position = 'fixed';
+        bar.style.top = '15px';
+        bar.style.left = '50%';
+        bar.style.transform = 'translateX(-50%)';
+        bar.style.zIndex = '99999';
+        bar.style.background = 'rgba(15, 23, 42, 0.95)';
+        bar.style.backdropFilter = 'blur(12px)';
+        bar.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+        bar.style.borderRadius = '30px';
+        bar.style.padding = '8px 18px';
+        bar.style.boxShadow = '0 8px 25px rgba(0,0,0,0.7)';
+        bar.style.display = 'flex';
+        bar.style.gap = '12px';
+        bar.style.alignItems = 'center';
+
+        bar.innerHTML = `
+            <span style="font-size: 0.85rem; color: #60a5fa; font-weight: bold;">🔍 Viendo Tablero (${sideName})</span>
+            ${reinforcementPoints !== null ? `
+                <span style="background: rgba(245, 158, 11, 0.25); border: 1.5px solid #f59e0b; border-radius: 12px; padding: 3px 10px; font-size: 0.85rem; font-weight: bold; color: #fef3c7; display: flex; align-items: center; gap: 6px;">
+                    🛡️ Refuerzos restantes: <strong style="font-size: 1.35rem; color: #fbbf24; font-weight: 900;">${reinforcementPoints}</strong>
+                </span>
+            ` : ''}
+            <button id="btn-return-from-inspection" style="padding: 6px 14px; border-radius: 20px; background: #2563eb; color: white; border: none; font-weight: bold; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                🔙 Volver a Elección
+            </button>
+        `;
+
+        document.body.appendChild(bar);
+
+        document.getElementById('btn-return-from-inspection')?.addEventListener('click', () => {
+            bar.remove();
+            blocker.remove();
+            modal.style.display = 'flex';
+        });
+    }
+
+    mountModal(modal) {
+        if (this.matchOptions?.isTutorial) {
+            const sandboxPanel = this.boardContainer?.closest('.tut-sandbox-panel') || this.boardContainer?.parentElement;
+            if (sandboxPanel) {
+                sandboxPanel.style.position = 'relative';
+                modal.style.position = 'absolute';
+                modal.style.top = '0';
+                modal.style.left = '0';
+                modal.style.width = '100%';
+                modal.style.height = '100%';
+                modal.style.borderRadius = '14px';
+                modal.style.zIndex = '100';
+                sandboxPanel.appendChild(modal);
+                return;
+            }
+        }
+        document.body.appendChild(modal);
+    }
+
     openDraftChoiceModal(step, callback) {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay modal-active';
         modal.id = 'modal-draft-choice';
 
+        const headerHtml = this.createModalHeaderHtml(step.side);
+
         modal.innerHTML = `
             <div class="modal-card glass-panel text-center animate-pop-in" style="max-width: 440px;">
+                ${headerHtml}
                 <h3 style="margin-bottom: 6px;">${step.title}</h3>
                 <p style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 16px;">Selecciona la unidad para reclutar en tu ejército</p>
-                <div class="draft-choice-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; max-height: 55vh; overflow-y: auto;">
+                <div class="draft-choice-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; max-height: 45vh; overflow-y: auto; margin-bottom: 12px;">
                     ${step.options.map(opt => `
                         <button class="draft-opt-btn" data-type="${opt.type}" style="padding: 12px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px;">
                             <span style="font-size: 1.8rem;">${opt.symbol}</span>
@@ -315,10 +440,29 @@ class GameController {
                         </button>
                     `).join('')}
                 </div>
+                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                    <button class="btn-modal-view-board action-btn secondary-btn small-btn" style="flex: 1; background: rgba(255,255,255,0.12);">
+                        👁️ Ver Tablero
+                    </button>
+                    <button class="btn-modal-cancel-draft action-btn secondary-btn small-btn" style="flex: 1; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5;">
+                        ⬅️ Volver al Menú
+                    </button>
+                </div>
             </div>
         `;
 
-        document.body.appendChild(modal);
+        this.mountModal(modal);
+        this.attachBoardInspectionBehavior(modal, step.side === 'w' ? 'Blancas' : 'Negras');
+
+        modal.querySelector('.btn-modal-cancel-draft')?.addEventListener('click', () => {
+            modal.remove();
+            this.isDrafting = false;
+            if (this.clockTimer) clearInterval(this.clockTimer);
+            document.querySelectorAll('.floating-popup-wrapper, #modal-draft-choice, #modal-board-inspection-bar, #modal-board-inspection-blocker, .modal-overlay').forEach(el => el.remove());
+            if (typeof MenuController !== 'undefined') {
+                MenuController.switchView('main-menu');
+            }
+        });
 
         modal.querySelectorAll('.draft-opt-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -383,6 +527,11 @@ class GameController {
         const bClock = document.getElementById('clock-black');
         if (wClock) wClock.textContent = this.formatTime(this.whiteTime);
         if (bClock) bClock.textContent = this.formatTime(this.blackTime);
+
+        // Update live modal clocks
+        document.querySelectorAll('.modal-live-clock').forEach(el => {
+            el.innerHTML = `⏱️ Tiempo restante — ⚪ ${this.formatTime(this.whiteTime)} | ⚫ ${this.formatTime(this.blackTime)}`;
+        });
     }
 
     // =========================================================================
@@ -409,6 +558,8 @@ class GameController {
                             this.finalizeTurn({ success: true, moveRecord: { piece, captured: targetPiece } });
                         });
                     }
+                } else if (choice === 'cancel') {
+                    // Do nothing
                 } else {
                     this.performRegularMove(fromR, fromC, toR, toC);
                 }
@@ -421,22 +572,8 @@ class GameController {
             this.openGiganteActionPopup(fromR, fromC, toR, toC, (choice) => {
                 if (choice === 'throw') {
                     this.activateGiganteThrowLandingMode(fromR, fromC, toR, toC);
-                } else if (choice === 'swap') {
-                    const targetPiece = this.boardEngine.getPiece(toR, toC);
-                    this.boardEngine.setPiece(fromR, fromC, targetPiece);
-                    this.boardEngine.setPiece(toR, toC, piece);
-                    piece.moved = true;
-                    if (targetPiece) targetPiece.moved = true;
-                    
-                    AudioManager.playMove();
-                    this.boardRenderer.setLastMove({ from: { r: fromR, c: fromC }, to: { r: toR, c: toC } });
-                    this.selectedSquare = null;
-                    this.selectedLegalMoves = [];
-                    this.boardRenderer.clearSelection();
-                    
-                    this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
-                    if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
-                    this.finalizeTurn({ success: true, moveRecord: { piece } });
+                } else if (choice === 'cancel') {
+                    // Do nothing, just return to selection
                 } else {
                     this.performRegularMove(fromR, fromC, toR, toC);
                 }
@@ -495,13 +632,25 @@ class GameController {
             }
 
             // Check Octogonal Rotation Popup
-            const movedPiece = this.boardEngine.getPiece(toR, toC);
+            let pieceAfterMoveRow = toR;
+            let pieceAfterMoveCol = toC;
+
+            if (result.moveRecord && result.moveRecord.special && (result.moveRecord.special.type === 'ranged' || result.moveRecord.special.isRanged)) {
+                pieceAfterMoveRow = fromR;
+                pieceAfterMoveCol = fromC;
+            }
+
+            const movedPiece = this.boardEngine.getPiece(pieceAfterMoveRow, pieceAfterMoveCol);
             const reg = movedPiece ? PieceRegistry.get(movedPiece.type) : null;
-            const isOcto = reg && (reg.octogonal || (reg.tags && reg.tags.some(t => String(t).toLowerCase().includes('octo'))));
+            const isOcto = reg && (
+                reg.octogonal || 
+                (reg.tags && reg.tags.some(t => String(t).toLowerCase().includes('octo'))) ||
+                (typeof window !== 'undefined' && window.CONTINENTAL_TEST_MODE && movedPiece.type === 'c_arquero')
+            );
 
             if (isOcto) {
                 this.boardRenderer.render(); // Render piece movement first so the popup anchors correctly to the piece's new position
-                this.openRotationPopup(toR, toC, () => {
+                this.openRotationPopup(pieceAfterMoveRow, pieceAfterMoveCol, () => {
                     this.finalizeTurn(result);
                 });
             } else {
@@ -544,7 +693,8 @@ class GameController {
         card.style.textAlign = 'center';
 
         card.innerHTML = `
-            ${title ? `<h3 style="margin-bottom: 4px; font-size: 1.05rem; color: #ffffff;">${title}</h3>` : ''}
+            <button class="close-floating-btn" style="position: absolute; top: 6px; right: 10px; background: transparent; border: none; color: #9ca3af; font-size: 1.2rem; font-weight: bold; cursor: pointer; line-height: 1; text-shadow: none;">&times;</button>
+            ${title ? `<h3 style="margin-bottom: 4px; font-size: 1.05rem; color: #ffffff; padding-right: 15px;">${title}</h3>` : ''}
             ${subtitle ? `<p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px; line-height: 1.3;">${subtitle}</p>` : ''}
             ${html || ''}
         `;
@@ -594,6 +744,16 @@ class GameController {
                 this.boardRenderer.render();
             }
         };
+
+        const closeBtn = card.querySelector('.close-floating-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                close();
+                if (options.onCloseClick) {
+                    options.onCloseClick();
+                }
+            });
+        }
 
         if (onInit) {
             onInit(card, close);
@@ -645,6 +805,10 @@ class GameController {
             square: { r, c },
             maxWidth: '260px',
             html: html,
+            onCloseClick: () => {
+                unpause();
+                if (callback) callback();
+            },
             onInit: (card, close) => {
                 card.querySelectorAll('.rotation-dir-btn').forEach(btn => {
                     btn.addEventListener('click', (e) => {
@@ -680,6 +844,9 @@ class GameController {
             square: { r, c },
             maxWidth: '340px',
             html: html,
+            onCloseClick: () => {
+                if (callback) callback('cancel');
+            },
             onInit: (card, close) => {
                 card.querySelectorAll('.btn-mago-stance').forEach(btn => {
                     btn.addEventListener('click', () => {
@@ -706,11 +873,15 @@ class GameController {
         `;
 
         this.showFloatingPopup({
-            title: '🧙 Hechizo del Mago',
+            title: '🧙‍♂️ Hechizo del Mago',
             subtitle: '¿Cómo deseas eliminar a la pieza enemiga?',
             square: { r: fromR, c: fromC },
             maxWidth: '330px',
             html: html,
+            onCloseClick: () => {
+                unpause();
+                callback('cancel');
+            },
             onInit: (card, close) => {
                 card.querySelector('#btn-mago-shoot')?.addEventListener('click', () => {
                     close();
@@ -728,17 +899,33 @@ class GameController {
 
     openGiganteActionPopup(fromR, fromC, targetR, targetC, callback) {
         const unpause = this.pauseClockTemporarily(5);
+        const gigPiece = this.boardEngine.getPiece(fromR, fromC);
+
+        // Check if an enemy Defensor is defending against this Gigante
+        let isDefendedByDefensor = false;
+        const targetPiece = this.boardEngine.getPiece(targetR, targetC);
+        if (targetPiece && targetPiece.type === 'c_defensor' && targetPiece.color !== gigPiece.color) {
+            if (PieceRegistry.isDefenderShieldingAgainst && PieceRegistry.isDefenderShieldingAgainst(this.boardEngine, { r: targetR, c: targetC }, { r: fromR, c: fromC })) {
+                isDefendedByDefensor = true;
+            }
+        }
+
+        const throwBtnHtml = isDefendedByDefensor ? `
+            <button id="btn-gigante-throw-disabled" disabled style="padding: 12px; border-radius: 8px; background: #4b5563; color: #9ca3af; border: none; font-weight: bold; cursor: not-allowed; flex: 1; opacity: 0.6;">
+                🛡️ Arrojar Bloqueado<br><span style="font-size: 0.72rem; font-weight: normal;">(Escudo de Defensor)</span>
+            </button>
+        ` : `
+            <button id="btn-gigante-throw" style="padding: 12px; border-radius: 8px; background: #f59e0b; color: white; border: none; font-weight: bold; cursor: pointer; flex: 1;">
+                ☄️ Arrojar<br><span style="font-size: 0.75rem; font-weight: normal;">(Lanzar)</span>
+            </button>
+        `;
+
         const html = `
             <div style="display: flex; gap: 10px; justify-content: center;">
                 <button id="btn-gigante-eat" style="padding: 12px; border-radius: 8px; background: #dc2626; color: white; border: none; font-weight: bold; cursor: pointer; flex: 1;">
-                    🍽️ Devorar<br><span style="font-size: 0.75rem; font-weight: normal;">(Comer)</span>
+                    🥩 Devorar<br><span style="font-size: 0.75rem; font-weight: normal;">(Comer)</span>
                 </button>
-                <button id="btn-gigante-swap" style="padding: 12px; border-radius: 8px; background: #3b82f6; color: white; border: none; font-weight: bold; cursor: pointer; flex: 1;">
-                    🔄 Cambiar<br><span style="font-size: 0.75rem; font-weight: normal;">(Intercambiar)</span>
-                </button>
-                <button id="btn-gigante-throw" style="padding: 12px; border-radius: 8px; background: #f59e0b; color: white; border: none; font-weight: bold; cursor: pointer; flex: 1;">
-                    🤾 Arrojar<br><span style="font-size: 0.75rem; font-weight: normal;">(Lanzar)</span>
-                </button>
+                ${throwBtnHtml}
             </div>
         `;
 
@@ -748,16 +935,15 @@ class GameController {
             square: { r: fromR, c: fromC },
             maxWidth: '380px',
             html: html,
+            onCloseClick: () => {
+                unpause();
+                callback('cancel');
+            },
             onInit: (card, close) => {
                 card.querySelector('#btn-gigante-eat')?.addEventListener('click', () => {
                     close();
                     unpause();
                     callback('eat');
-                });
-                card.querySelector('#btn-gigante-swap')?.addEventListener('click', () => {
-                    close();
-                    unpause();
-                    callback('swap');
                 });
                 card.querySelector('#btn-gigante-throw')?.addEventListener('click', () => {
                     close();
@@ -769,6 +955,15 @@ class GameController {
     }
 
     activateGiganteThrowLandingMode(fromR, fromC, targetR, targetC) {
+        const gigPiece = this.boardEngine.getPiece(fromR, fromC);
+        const targetPiece = this.boardEngine.getPiece(targetR, targetC);
+        
+        if (targetPiece && targetPiece.type === 'c_defensor' && targetPiece.color !== gigPiece.color) {
+            if (PieceRegistry.isDefenderShieldingAgainst && PieceRegistry.isDefenderShieldingAgainst(this.boardEngine, { r: targetR, c: targetC }, { r: fromR, c: fromC })) {
+                return;
+            }
+        }
+
         this.isThrowMode = true;
         
         const thrownPiece = this.boardEngine.getPiece(targetR, targetC);
@@ -801,6 +996,7 @@ class GameController {
         this.boardEngine.setPiece(targetR, targetC, null);
 
         const squashedPiece = this.boardEngine.getPiece(landingR, landingC);
+        const gig = this.boardEngine.getPiece(fromR, fromC);
         
         if (squashedPiece) {
             // Both the thrown piece and the squashed piece die!
@@ -808,6 +1004,19 @@ class GameController {
             this.rulesEngine.capturedPieces[this.rulesEngine.activeColor].push(squashedPiece);
             this.rulesEngine.capturedPieces[this.rulesEngine.activeColor].push(thrownPiece);
             this.boardEngine.setPiece(landingR, landingC, null);
+
+            // Escudero retribution: clear capturedLastTurn on active color pieces and mark Gigante
+            for (let r = 0; r < this.boardEngine.rows; r++) {
+                for (let c = 0; c < this.boardEngine.cols; c++) {
+                    const p = this.boardEngine.getPiece(r, c);
+                    if (p && p.color === this.rulesEngine.activeColor) {
+                        p.capturedLastTurn = false;
+                    }
+                }
+            }
+            if (gig) {
+                gig.capturedLastTurn = true;
+            }
         } else {
             // Thrown piece lands safely
             AudioManager.playMove();
@@ -823,7 +1032,7 @@ class GameController {
         this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
         if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
 
-        this.finalizeTurn({ success: true, moveRecord: { piece: thrownPiece } });
+        this.finalizeTurn({ success: true, moveRecord: { piece: gig || thrownPiece, captured: squashedPiece } });
     }
 
     fireSelectedCanonBeam() {
@@ -835,9 +1044,26 @@ class GameController {
         const beamResult = PieceRegistry.fireCanonBeam(this.boardEngine, r, c);
         if (beamResult.destroyed.length > 0) {
             AudioManager.playCapture();
+            let killedEnemy = false;
             beamResult.destroyed.forEach(d => {
                 this.rulesEngine.capturedPieces[piece.color].push(d.piece);
+                if (d.piece.color !== piece.color) {
+                    killedEnemy = true;
+                }
             });
+
+            if (killedEnemy) {
+                // Clear capturedLastTurn on active color pieces
+                for (let i = 0; i < this.boardEngine.rows; i++) {
+                    for (let j = 0; j < this.boardEngine.cols; j++) {
+                        const p = this.boardEngine.getPiece(i, j);
+                        if (p && p.color === piece.color) {
+                            p.capturedLastTurn = false;
+                        }
+                    }
+                }
+                piece.capturedLastTurn = true;
+            }
         } else {
             AudioManager.playMove();
         }
@@ -856,7 +1082,7 @@ class GameController {
 
     getSquareCoordLabel(r, c) {
         if (this.boardEngine.rows === 7) {
-            const ranks = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+            const ranks = ['g', 'f', 'e', 'd', 'c', 'b', 'a'];
             const rank = ranks[r] || 'a';
             const file = (c + 1).toString();
             return `${rank}${file}`;
@@ -877,24 +1103,26 @@ class GameController {
                 const p = this.boardEngine.getPiece(r, c);
                 if (p && p.color === this.rulesEngine.activeColor) {
                     const reg = PieceRegistry.get(p.type);
-                    if (reg && (reg.octogonal || (reg.tags && reg.tags.some(t => String(t).toLowerCase().includes('octo'))))) {
+                    const isOcto = reg && (
+                        reg.octogonal || 
+                        (reg.tags && reg.tags.some(t => String(t).toLowerCase().includes('octo'))) ||
+                        (typeof window !== 'undefined' && window.CONTINENTAL_TEST_MODE && p.type === 'c_arquero')
+                    );
+                    if (isOcto) {
                         myOctoPieces.push({ r, c, piece: p, name: reg.name.es, symbol: reg.symbol });
                     }
                 }
             }
         }
 
+        let contentHtml = '';
         if (myOctoPieces.length === 0) {
-            alert('No tienes piezas octogonales en el tablero para rotar.');
-            unpause();
-            return;
-        }
-
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay modal-active';
-        modal.innerHTML = `
-            <div class="modal-card glass-panel text-center animate-pop-in" style="max-width: 340px;">
-                <h3 style="margin-bottom: 6px;">⏭️ Pasar Turno y Rotar</h3>
+            contentHtml = `
+                <p style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 14px;">No tienes piezas octogonales para rotar.</p>
+                <button class="action-btn primary-btn btn-confirm-pass" style="width: 100%; margin-bottom: 8px;">⏳ Solo Pasar Turno</button>
+            `;
+        } else {
+            contentHtml = `
                 <p style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 14px;">Elige una pieza para rotar antes de ceder el turno:</p>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     ${myOctoPieces.map((op, idx) => `
@@ -903,27 +1131,144 @@ class GameController {
                         </button>
                     `).join('')}
                 </div>
+            `;
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay modal-active';
+        modal.innerHTML = `
+            <div class="modal-card glass-panel text-center animate-pop-in" style="max-width: 340px;">
+                <h3 style="margin-bottom: 6px;">⏳ Pasar Turno</h3>
+                ${contentHtml}
+                <div style="margin-top: 15px;">
+                    <button class="action-btn secondary-btn btn-cancel-pass-rot" style="width: 100%;">Cancelar</button>
+                </div>
             </div>
         `;
-        document.body.appendChild(modal);
+        this.mountModal(modal);
 
-        modal.querySelectorAll('.btn-select-pass-rot').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const selected = myOctoPieces[parseInt(btn.dataset.idx, 10)];
+        modal.querySelector('.btn-cancel-pass-rot').addEventListener('click', () => {
+            modal.remove();
+            unpause();
+        });
+
+        if (myOctoPieces.length === 0) {
+            modal.querySelector('.btn-confirm-pass').addEventListener('click', () => {
                 modal.remove();
                 unpause();
-                this.openRotationPopup(selected.r, selected.c, () => {
-                    this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
-                    if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
-                    this.finalizeTurn({ success: true, moveRecord: { piece: selected.piece } });
+                this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+                this.finalizeTurn({ success: true, moveRecord: { passed: true } });
+            });
+        } else {
+            modal.querySelectorAll('.btn-select-pass-rot').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const selected = myOctoPieces[parseInt(btn.dataset.idx, 10)];
+                    modal.remove();
+                    unpause();
+                    this.openRotationPopup(selected.r, selected.c, () => {
+                        this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                        if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+                        this.finalizeTurn({ success: true, moveRecord: { piece: selected.piece } });
+                    });
                 });
             });
-        });
+        }
     }
 
     // =========================================================================
     // DRAW & REINFORCEMENTS NEGOTIATION
     // =========================================================================
+
+    handleDrawOrReinforcementRequest() {
+        const proposingSide = this.rulesEngine.activeColor;
+        const recipientSide = proposingSide === 'w' ? 'b' : 'w';
+        const proposingName = proposingSide === 'w' ? 'Blancas' : 'Negras';
+        const recipientName = recipientSide === 'w' ? 'Blancas' : 'Negras';
+
+        const unpause = this.pauseClockTemporarily(5);
+        const isRecipientAI = (this.matchOptions?.mode === 'ai' && recipientSide !== this.matchOptions.playerSide);
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay modal-active';
+        
+        const headerHtml = this.createModalHeaderHtml(recipientSide);
+
+        modal.innerHTML = `
+            <div class="modal-card glass-panel text-center animate-pop-in" style="max-width: 420px;">
+                ${headerHtml}
+                <h3>🤝 Solicitud de Tablas y Refuerzos</h3>
+                <p style="font-size: 0.9rem; color: #a7f3d0; margin-top: 8px; margin-bottom: 12px; line-height: 1.4;">
+                    El jugador <strong>${proposingName}</strong> propone negociar Tablas y recibir Puntos de Refuerzo.
+                </p>
+                <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 16px;">
+                    ¿Aceptas la solicitud para entrar a la negociación de puntos?
+                </p>
+                <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                    <button id="btn-draw-req-accept" class="action-btn primary-btn" style="flex: 1; background: #16a34a;">
+                        ✅ Aceptar Propuesta
+                    </button>
+                    <button id="btn-draw-req-reject" class="action-btn secondary-btn" style="flex: 1; background: #dc2626;">
+                        ❌ Rechazar
+                    </button>
+                </div>
+                <button class="btn-modal-view-board action-btn secondary-btn small-btn" style="width: 100%; background: rgba(255,255,255,0.12);">
+                    👁️ Ver Tablero
+                </button>
+            </div>
+        `;
+
+        this.mountModal(modal);
+        this.attachBoardInspectionBehavior(modal, recipientName);
+
+        const onAccept = () => {
+            modal.remove();
+            unpause();
+            this.openDrawNegotiationModal();
+        };
+
+        const onReject = () => {
+            modal.remove();
+            unpause();
+            this.showQuickToast(`❌ ${recipientName} no aceptó la propuesta de tablas y refuerzos.`);
+        };
+
+        if (isRecipientAI) {
+            setTimeout(() => {
+                if (Math.random() < 0.8) {
+                    onAccept();
+                } else {
+                    onReject();
+                }
+            }, 800);
+            return;
+        }
+
+        document.getElementById('btn-draw-req-accept')?.addEventListener('click', onAccept);
+        document.getElementById('btn-draw-req-reject')?.addEventListener('click', onReject);
+    }
+
+    showQuickToast(msg) {
+        const toast = document.createElement('div');
+        toast.style.position = 'fixed';
+        toast.style.bottom = '80px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.zIndex = '999999';
+        toast.style.background = 'rgba(15, 23, 42, 0.95)';
+        toast.style.color = '#ffffff';
+        toast.style.padding = '10px 20px';
+        toast.style.borderRadius = '25px';
+        toast.style.border = '1px solid rgba(255,255,255,0.2)';
+        toast.style.boxShadow = '0 6px 20px rgba(0,0,0,0.5)';
+        toast.style.fontWeight = 'bold';
+        toast.style.fontSize = '0.85rem';
+        toast.style.pointerEvents = 'none';
+        toast.textContent = msg;
+
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+    }
 
     openDrawNegotiationModal(onComplete) {
         this.drawCount++;
@@ -944,14 +1289,24 @@ class GameController {
             const sideName = side === 'w' ? 'Blancas' : 'Negras';
             const modal = document.createElement('div');
             modal.className = 'modal-overlay modal-active';
+
+            const headerHtml = this.createModalHeaderHtml(side);
+
             modal.innerHTML = `
-                <div class="modal-card glass-panel text-center animate-pop-in" style="max-width: 380px;">
+                <div class="modal-card glass-panel text-center animate-pop-in" style="max-width: 420px;">
+                    ${headerHtml}
                     <h3>🤝 Tablas y Refuerzos (${this.drawCount}ª Vez)</h3>
                     <p style="font-size: 0.82rem; color: #a7f3d0; margin-bottom: 8px; line-height: 1.4;">
                         💡 <strong>Los puntos que elijas son Puntos de Refuerzo</strong> que recibirán ambos bandos para convocar nuevas tropas al tablero.
                     </p>
                     <p style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 12px;">Ronda ${currentRound} de 4 — Turno de ${sideName}</p>
-                    ${lastProposal ? `<p style="color: #f59e0b; font-weight: bold; margin-bottom: 12px;">Propuesta anterior: ${lastProposal} Puntos de Refuerzo</p>` : ''}
+                    ${lastProposal ? `
+                        <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 6px; padding: 4px 10px; margin: 4px auto 12px auto; display: inline-block;">
+                            <span style="font-size: 1.15rem; font-weight: bold; color: #fbbf24; text-shadow: 0 0 5px rgba(245, 158, 11, 0.5);">
+                                🛡️ Propuesta: ${lastProposal} Puntos
+                            </span>
+                        </div>
+                    ` : ''}
                     <div style="display: flex; flex-direction: column; gap: 8px;">
                         <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
                             ${Array.from({ length: maxPts }, (_, i) => i + 1).map(num => `
@@ -964,10 +1319,14 @@ class GameController {
                             ${lastProposal ? `<button id="btn-bid-accept" style="flex: 1; padding: 10px; border-radius: 8px; background: #16a34a; color: white; font-weight: bold; border: none; cursor: pointer;">✅ Aceptar ${lastProposal} Puntos</button>` : ''}
                             <button id="btn-bid-draw" style="flex: 1; padding: 10px; border-radius: 8px; background: #4b5563; color: white; font-weight: bold; border: none; cursor: pointer;">🤝 Pedir Tablas</button>
                         </div>
+                        <button class="btn-modal-view-board action-btn secondary-btn small-btn" style="width: 100%; margin-top: 8px; background: rgba(255,255,255,0.12);">
+                            👁️ Ver Tablero
+                        </button>
                     </div>
                 </div>
             `;
-            document.body.appendChild(modal);
+            this.mountModal(modal);
+            this.attachBoardInspectionBehavior(modal, sideName);
 
             const isAI = (this.matchOptions?.mode === 'ai' && side !== this.matchOptions.playerSide);
             if (isAI) {
@@ -1098,49 +1457,74 @@ class GameController {
             }
 
             this.openCategorizedPieceModal({
+                side: side,
                 title: `🛡️ Refuerzos: ${sideName}`,
                 subtitle: `Puntos restantes: ${currentPoints}`,
+                reinforcementPoints: currentPoints,
                 description: `Elige una pieza, luego haz click en una casilla verde de la fila para ubicarla.` + previousChoicesHtml,
                 showCost: true,
-                groups: groups
+                groups: groups,
+                allowPass: true,
+                onPass: () => {
+                    this.lastReinforcementChoices = { side: side, pieces: currentChoices };
+                    callback(currentPoints);
+                }
             }, (unitType, cost) => {
                 const choiceDef = Object.values(cats).flat().find(p => p.type === unitType);
                 if (choiceDef) currentChoices.push(choiceDef);
 
-                if (emptyCols.length === 1) {
-                    this.boardEngine.setPiece(row, emptyCols[0], {
-                        type: unitType,
-                        color: side,
-                        facing: side === 'w' ? 0 : 180
-                    });
+                // Always use interactive placement mode so player picks square on board
+                this.activateReinforcementPlacementMode(row, emptyCols, unitType, side, cost, currentPoints, () => {
                     currentPoints -= cost;
                     this.boardRenderer.render();
                     tryPlaceNext();
-                } else {
-                    this.activateReinforcementPlacementMode(row, emptyCols, unitType, side, cost, () => {
-                        currentPoints -= cost;
-                        this.boardRenderer.render();
-                        tryPlaceNext();
-                    });
-                }
+                });
             });
         };
 
         tryPlaceNext();
     }
 
-    activateReinforcementPlacementMode(row, emptyCols, unitType, side, cost, callback) {
+    activateReinforcementPlacementMode(row, emptyCols, unitType, side, cost, currentPoints, callback) {
         this.isReinforcementMode = true;
-        this.reinforcementData = { row, emptyCols, unitType, side, cost, callback };
+        this.reinforcementData = { row, emptyCols, unitType, side, cost, currentPoints, callback };
 
         const placementMoves = emptyCols.map(c => ({ r: row, c, type: 'throw-target' })); // reuse throw-target green dots
         
         this.selectedSquare = null;
         this.selectedLegalMoves = placementMoves;
         this.boardRenderer.setSelected(null, placementMoves);
+
+        // Show floating notification banner with remaining reinforcement points
+        document.getElementById('modal-reinforcement-placement-banner')?.remove();
+        const banner = document.createElement('div');
+        banner.id = 'modal-reinforcement-placement-banner';
+        banner.style.position = 'fixed';
+        banner.style.top = '15px';
+        banner.style.left = '50%';
+        banner.style.transform = 'translateX(-50%)';
+        banner.style.zIndex = '99999';
+        banner.style.background = 'rgba(15, 23, 42, 0.95)';
+        banner.style.backdropFilter = 'blur(12px)';
+        banner.style.border = '2px solid #f59e0b';
+        banner.style.borderRadius = '20px';
+        banner.style.padding = '6px 14px';
+        banner.style.boxShadow = '0 6px 18px rgba(0,0,0,0.6)';
+        banner.style.display = 'flex';
+        banner.style.gap = '10px';
+        banner.style.alignItems = 'center';
+        const remainingAfter = (currentPoints !== undefined && cost !== undefined) ? (currentPoints - cost) : 0;
+        banner.innerHTML = `
+            <span style="font-size: 0.8rem; color: #93c5fd; font-weight: bold;">Ubica tu unidad</span>
+            <span style="background: rgba(245, 158, 11, 0.2); border-radius: 8px; padding: 2px 8px; font-size: 0.8rem; color: #fef3c7; font-weight: bold; display: flex; align-items: center; gap: 4px;">
+                🛡️ Restan: <strong style="font-size: 1.15rem; color: #fbbf24; font-weight: 900;">${remainingAfter}</strong> pts
+            </span>
+        `;
+        document.body.appendChild(banner);
     }
 
     executeReinforcementPlacement(r, c) {
+        document.getElementById('modal-reinforcement-placement-banner')?.remove();
         const { row, emptyCols, unitType, side, callback } = this.reinforcementData;
         if (r !== row || !emptyCols.includes(c)) return;
 
@@ -1189,9 +1573,18 @@ class GameController {
     // =========================================================================
 
     finalizeTurn(result) {
+        if (this.matchOptions?.alwaysWhiteTurn) {
+            this.rulesEngine.activeColor = 'w';
+        }
         this.boardRenderer.render();
         this.updateMatchState(result, () => {
             if (this.isGameOver) return;
+
+            if (this.matchOptions?.alwaysWhiteTurn) {
+                this.rulesEngine.activeColor = 'w';
+                this.boardRenderer.render();
+                return;
+            }
 
             this.checkPendingReinforcements(() => {
                 if (this.matchOptions.mode === 'ai' && this.rulesEngine.activeColor !== this.matchOptions.playerSide) {
@@ -1257,11 +1650,14 @@ class GameController {
         }
 
         if (this.rulesEngine.isContinental) {
-            const continentalWin = this.rulesEngine.checkContinentalVictory();
-            if (continentalWin) {
-                this.endMatch(continentalWin.message);
-                if (onComplete) onComplete();
-                return;
+            const isCapturaCentro = this.matchOptions?.submode && this.matchOptions.submode.includes('captura_centro');
+            if (!isCapturaCentro) {
+                const continentalWin = this.rulesEngine.checkContinentalVictory();
+                if (continentalWin) {
+                    this.endMatch(continentalWin.message);
+                    if (onComplete) onComplete();
+                    return;
+                }
             }
         }
 
@@ -1379,10 +1775,14 @@ class GameController {
 
         this.closeWolfPopup = this.showFloatingPopup({
             title: `🐺 Manada de Lobos`,
-            subtitle: advanceCheck.isCapture ? '⚔️ ¿Deseas avanzar y comer a la pieza enemiga?' : '⬆️ ¿Deseas avanzar 1 paso adelante?',
+            subtitle: advanceCheck.isCapture ? '⚔️ ¿Deseas avanzar y comer a la pieza enemiga?' : '🐾 ¿Deseas avanzar 1 paso adelante?',
             square: wolfPos,
             maxWidth: '280px',
             html: html,
+            onCloseClick: () => {
+                this.closeWolfPopup = null;
+                this.handleWolfResponse(false, wolfPos, moveResult);
+            },
             onInit: (card, close) => {
                 card.querySelector('#btn-game-wolf-yes')?.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -1480,7 +1880,7 @@ class GameController {
         let canonBeamBtn = '';
         if (this.selectedSquare) {
             const selPiece = this.boardEngine.getPiece(this.selectedSquare.r, this.selectedSquare.c);
-            if (selPiece && selPiece.type === 'c_canon' && !selPiece.usedBeamLastTurn && !selPiece.cooldownActive) {
+            if (selPiece && selPiece.type === 'c_canon' && !selPiece.justFired && !selPiece.usedBeamLastTurn && !selPiece.cooldownActive) {
                 canonBeamBtn = `<button id="btn-game-canon-beam" class="action-btn primary-btn small-btn animate-pulse">💣 Bombardeo Frontal</button>`;
             }
         }
@@ -1491,6 +1891,11 @@ class GameController {
                     <div class="player-info">
                         <span class="player-avatar">♚</span>
                         <span class="player-name" data-i18n="blackPlayer">${I18n.get('blackPlayer')}</span>
+                        ${this.reinforcementsBank?.b > 0 ? `
+                            <span class="badge-reinforcements" style="background: rgba(245, 158, 11, 0.25); border: 1px solid #f59e0b; color: #fbbf24; font-weight: bold; padding: 2px 8px; border-radius: 6px; font-size: 0.85rem; margin-left: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                🛡️ Banco: <strong style="font-size: 1.15rem; color: #fff; font-weight: 900;">${this.reinforcementsBank.b}</strong> pts
+                            </span>
+                        ` : ''}
                         <div class="captured-tray">${bCaptured.map(p => PieceRegistry.get(p.type)?.symbol || '').join(' ')}</div>
                     </div>
                     <div id="clock-black" class="timer-badge">${this.formatTime(this.blackTime)}</div>
@@ -1507,6 +1912,11 @@ class GameController {
                     <div class="player-info">
                         <span class="player-avatar">♔</span>
                         <span class="player-name" data-i18n="whitePlayer">${I18n.get('whitePlayer')}</span>
+                        ${this.reinforcementsBank?.w > 0 ? `
+                            <span class="badge-reinforcements" style="background: rgba(245, 158, 11, 0.25); border: 1px solid #f59e0b; color: #fbbf24; font-weight: bold; padding: 2px 8px; border-radius: 6px; font-size: 0.85rem; margin-left: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                🛡️ Banco: <strong style="font-size: 1.15rem; color: #fff; font-weight: 900;">${this.reinforcementsBank.w}</strong> pts
+                            </span>
+                        ` : ''}
                         <div class="captured-tray">${wCaptured.map(p => PieceRegistry.get(p.type)?.symbol || '').join(' ')}</div>
                     </div>
                     <div id="clock-white" class="timer-badge">${this.formatTime(this.whiteTime)}</div>
@@ -1535,7 +1945,7 @@ class GameController {
 
             document.getElementById('btn-game-draw')?.addEventListener('click', () => {
                 if (this.rulesEngine.isContinental) {
-                    this.openDrawNegotiationModal();
+                    this.handleDrawOrReinforcementRequest();
                 } else {
                     this.endMatch(I18n.get('drawText'));
                 }
@@ -1585,6 +1995,8 @@ class GameController {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay modal-active';
 
+        const headerHtml = this.createModalHeaderHtml(config.side || null);
+
         let groupsHtml = '';
         for (const group of config.groups) {
             groupsHtml += `
@@ -1602,16 +2014,43 @@ class GameController {
             `;
         }
 
+        const isReinforcement = config.reinforcementPoints !== undefined;
+
         modal.innerHTML = `
             <div class="modal-card glass-panel text-center animate-pop-in" style="max-width: 500px; max-height: 85vh; overflow-y: auto;">
+                ${headerHtml}
                 <h3>${config.title}</h3>
-                ${config.subtitle ? `<p style="font-size: 0.85rem; color: #f59e0b; font-weight: bold; margin-bottom: 8px;">${config.subtitle}</p>` : ''}
+                ${isReinforcement ? `
+                    <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 6px; padding: 4px 10px; margin: 4px auto 12px auto; display: inline-block;">
+                        <span style="font-size: 1.15rem; font-weight: bold; color: #fbbf24; text-shadow: 0 0 5px rgba(245, 158, 11, 0.5);">
+                            🛡️ ${config.reinforcementPoints} ${config.reinforcementPoints === 1 ? 'punto restante' : 'puntos restantes'}
+                        </span>
+                    </div>
+                ` : (config.subtitle ? `<p style="font-size: 0.85rem; color: #f59e0b; font-weight: bold; margin-bottom: 8px;">${config.subtitle}</p>` : '')}
                 ${config.description ? `<p style="font-size: 0.8rem; color: #9ca3af; margin-bottom: 12px;">${config.description}</p>` : ''}
                 ${groupsHtml}
+                <div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap;">
+                    <button class="btn-modal-view-board action-btn secondary-btn small-btn" style="flex: 1; min-width: 130px; background: rgba(255,255,255,0.12);">
+                        👁️ Ver Tablero
+                    </button>
+                    ${config.allowPass ? `<button id="btn-modal-bank-pass" class="action-btn primary-btn small-btn" style="flex: 1; min-width: 150px; background: #16a34a;">💰 Guardar Puntos en Banco (${isReinforcement ? config.reinforcementPoints : ''} pts)</button>` : ''}
+                </div>
             </div>
         `;
         
-        document.body.appendChild(modal);
+        this.mountModal(modal);
+        this.attachBoardInspectionBehavior(
+            modal, 
+            config.side === 'w' ? 'Blancas' : (config.side === 'b' ? 'Negras' : 'Elección'),
+            isReinforcement ? config.reinforcementPoints : null
+        );
+
+        if (config.allowPass) {
+            modal.querySelector('#btn-modal-bank-pass')?.addEventListener('click', () => {
+                modal.remove();
+                if (config.onPass) config.onPass();
+            });
+        }
 
         modal.querySelectorAll('.btn-place-unit').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -1669,6 +2108,15 @@ class GameController {
     endMatch(resultMessage) {
         this.isGameOver = true;
         this.stopClock();
+
+        document.getElementById('modal-board-inspection-bar')?.remove();
+        document.getElementById('modal-board-inspection-blocker')?.remove();
+        document.querySelectorAll('.modal-overlay').forEach(el => {
+            if (el.id !== 'match-setup-modal') el.remove();
+        });
+        this.isReinforcementMode = false;
+        this.reinforcementData = null;
+
         this.renderHUD();
         AudioManager.playVictory();
 

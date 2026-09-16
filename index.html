@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="css/board.css?v=33">
 
     <!-- PeerJS for Local Network / WebRTC P2P Multiplayer -->
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" defer></script>
+    <script src="js/lib/peerjs.min.js" defer></script>
 </head>
 <body class="theme-war">
 
@@ -32,6 +32,9 @@
 
             <!-- MAIN MENU LANDING (Vertical Menu - Matches User Drawing) -->
             <section id="view-main-menu" class="app-view active">
+                <button id="btn-changelog" style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.2); color: #fff; border-radius: 8px; padding: 6px 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 1.1em; z-index: 10;">
+                    📜 V.81
+                </button>
                 <div class="vertical-menu-container">
                     
                     <!-- BUTTON 1: Jugar -->

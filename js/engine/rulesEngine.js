@@ -38,7 +38,15 @@ class RulesEngine {
                     const tier = reg ? reg.tier : 'peones';
                     const isKing = (piece.type === 'c_rey' || piece.type === 'k');
 
-                    if (isKing) {
+                    if (piece.promoted) {
+                        if (tier === 'comandantes' || isKing || piece.type === 'q') {
+                            total += 3;
+                        } else if (tier === 'elites' || ['r', 'b', 'n'].includes(piece.type)) {
+                            total += 2;
+                        } else {
+                            total += 2;
+                        }
+                    } else if (isKing) {
                         total += 6;
                     } else if (tier === 'comandantes') {
                         total += 3;
@@ -280,8 +288,16 @@ class RulesEngine {
         // Record Captured Piece & set capturedLastTurn
         if (moveRecord.captured) {
             this.capturedPieces[this.activeColor].push(moveRecord.captured);
-            const movedPiece = this.board.getPiece(toR, toC);
-            if (movedPiece) {
+            
+            let attackerRow = toR;
+            let attackerCol = toC;
+            if (special && (special.type === 'ranged' || special.isRanged)) {
+                attackerRow = fromR;
+                attackerCol = fromC;
+            }
+
+            const movedPiece = this.board.getPiece(attackerRow, attackerCol);
+            if (movedPiece && moveRecord.captured.color !== movedPiece.color) {
                 movedPiece.capturedLastTurn = true;
             }
         }
@@ -304,7 +320,9 @@ class RulesEngine {
                     if (p.cooldownActive) {
                         p.cooldownActive = false;
                         p.usedBeamLastTurn = false;
-                    } else if (p.usedBeamLastTurn) {
+                        p.justFired = false;
+                    } else if (p.usedBeamLastTurn || p.justFired) {
+                        p.justFired = false;
                         p.cooldownActive = true;
                     }
                 }

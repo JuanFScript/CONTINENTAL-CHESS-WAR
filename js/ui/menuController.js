@@ -29,14 +29,97 @@ const MenuController = {
         });
 
         document.getElementById('btn-menu-tutorial')?.addEventListener('click', () => {
+            if (typeof TutorialTab !== 'undefined') TutorialTab.reset();
             this.switchView('tutorial');
+        });
+
+        document.getElementById('btn-changelog')?.addEventListener('click', () => {
+            this.openChangelogModal();
         });
 
         // "Back to Menu" buttons
         document.querySelectorAll('.btn-back-menu').forEach(btn => {
             btn.addEventListener('click', () => {
+                if (typeof TutorialTab !== 'undefined') TutorialTab.reset();
                 this.switchView('main-menu');
             });
+        });
+    },
+
+    openChangelogModal() {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay modal-active';
+        modal.innerHTML = `
+            <div class="modal-card glass-panel" style="position: relative; max-width: 550px; max-height: 85vh; overflow-y: auto; text-align: left; padding: 25px;">
+                <button class="btn-close-changelog" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.1em; display: flex; align-items: center; justify-content: center; z-index: 10; transition: background 0.2s;">✖</button>
+                <h2 style="color: #ffd700; margin-top: 0; margin-bottom: 20px; font-size: 1.5em; text-align: center; position: sticky; top: -25px; background: rgba(13,42,32,0.95); padding: 15px 0 10px 0; z-index: 5;">📜 Historial de Actualizaciones</h2>
+                
+                <h3 style="color: #4ade80; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 81 (Actual)</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>UI Refinada:</strong> Se rediseñó el cartel de Puntos de Refuerzo en los menús de reclutamiento y negociación para ser más compacto y sutil.</li>
+                    <li style="margin-bottom: 8px;"><strong>Arquero en Modo Prueba:</strong> Ahora se mueve en cruz de acuerdo a su orientación actual y puede rotar libremente luego de disparar.</li>
+                    <li style="margin-bottom: 8px;"><strong>Retribución de Escudero:</strong> La habilidad de venganza ahora funciona correctamente contra unidades de ataque a distancia (Arqueros, Cañones y Magos) que hayan destruido aliados.</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 80</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Puntaje de Promoción Continental:</strong> Si un peón corona a una unidad Élite pasa a valer 2 puntos; si corona a Comandante (incluyendo Reyes coronados), pasa a valer 3 puntos para el conteo de victoria militar.</li>
+                    <li style="margin-bottom: 8px;"><strong>Interacciones Gigante vs Escudero y Defensor:</strong> Si un Gigante arroja y aplasta piezas, los Escuderos enemigos adyacentes pueden retribuirlo y atacarlo al siguiente turno. Además, un Gigante no puede usar su habilidad de arrojar si está encarado directamente por el escudo de un Defensor enemigo adyacente.</li>
+                    <li style="margin-bottom: 8px;"><strong>Coordenadas en Pasar y Girar:</strong> Se sincronizaron las coordenadas mostradas en la lista de rotación con las etiquetas oficiales del tablero (g1-a7).</li>
+                    <li style="margin-bottom: 8px;"><strong>Modo de Prueba (🧪 Experimental):</strong> Nueva opción desactivada por defecto para probar mecánicas en desarrollo sin afectar el rendimiento oficial del juego (incluye Arquero octogonal con movimiento de cañón y disparo a 3 casillas de frente).</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 79</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Tutorial Continental:</strong> Se corrigió un error interno al iniciar el tutorial, se ajustó el equipo Blanco en el Paso 3 (ahora ambos inician con 1 Peón, 1 Élite y 1 Comandante), y se añadió el botón de "Volver al Menú" durante la selección de tropas.</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 78</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Arreglo en Botones de Tutorial:</strong> Se corrigió la interacción táctil y los clics en las tarjetas del selector de tutoriales, asegurando respuesta inmediata al tocar cualquier parte de la tarjeta o del botón.</li>
+                    <li style="margin-bottom: 8px;"><strong>Limpieza de Navegación:</strong> Se mejoró el reseteo de estado y eliminación de popups al cambiar de tutorial o regresar al menú principal.</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 77</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Tutoriales Mejorados:</strong> Práctica interactiva con Bot en selección y negociación, contador de puntos en vivo, tablero completo en paso 1, simulación de rayo de cañón y turno libre para probar habilidades.</li>
+                    <li style="margin-bottom: 8px;"><strong>Captura el Centro:</strong> Ahora SOLO se puede ganar dominando el centro (condición de puntos deshabilitada). El Rey otorga 4 puntos de refuerzo al inicio.</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 76</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Defensor (🔰):</strong> Ahora puede capturar piezas enemigas hacia atrás y a sus costados (5 casillas), pero ya no puede atacar en las 3 direcciones frontales que protege su escudo.</li>
+                    <li style="margin-bottom: 8px;"><strong>Escudero (🛡️):</strong> Se arregló su habilidad de Retribución para que solo ataque hacia el frente y a los costados.</li>
+                    <li style="margin-bottom: 8px;"><strong>Pasar Turno:</strong> Ya no es necesario tener piezas octogonales para pasar el turno libremente usando el botón correspondiente.</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 74</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>UI de Menús:</strong> Se agregó el tiempo restante, medallas de turno (Blancas/Negras) y un botón de "Ver Tablero" (👁️) a los menús de selección, reclutamiento y negociación.</li>
+                    <li style="margin-bottom: 8px;"><strong>Negociación de Tablas:</strong> Ahora el rival puede rechazar la petición explícitamente antes de pasar a la fase de pujas por refuerzos.</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 73</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Gigante:</strong> Se completó la mecánica de "Intercambio" con aliados (Swap) e información en la armería.</li>
+                    <li style="margin-bottom: 8px;"><strong>Defensor:</strong> Ya no puede capturar hacia atrás ni en diagonal hacia atrás. Ahora sobrevive al Rayo del Cañón frontal a corta distancia (el rayo lo traspasa sin detenerse).</li>
+                    <li style="margin-bottom: 8px;"><strong>Elefante:</strong> Movimiento corregido. Ahora el bloqueo se calcula en diagonal (como en el Xiangqi) permitiendo un movimiento más preciso.</li>
+                </ul>
+
+                <h3 style="color: #9ca3af; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 72</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Gran Ejército:</strong> Se solucionó un bug en la acumulación de puntos en el banco y se mejoró el flujo de colocación de unidades obligando a ponerlas manualmente en el tablero.</li>
+                </ul>
+
+                <div style="text-align: center; margin-top: 25px;">
+                    <button class="action-btn primary-btn" onclick="this.closest('.modal-overlay').remove()">Cerrar</button>
+                </div>
+            </div>
+        `;
+        document.getElementById('modal-container').appendChild(modal);
+
+        modal.querySelector('.btn-close-changelog').addEventListener('click', () => {
+            modal.remove();
         });
     },
 

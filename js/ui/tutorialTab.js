@@ -142,37 +142,14 @@ const TutorialTab = {
                     ],
                     setup: (b) => {
                         b.clear();
-                        b.setPiece(6, 3, { type: 'c_rey', color: 'w', facing: 0 });
-                        b.setPiece(5, 3, { type: 'c_peon', color: 'w', facing: 0 });
-                        b.setPiece(0, 3, { type: 'c_rey', color: 'b', facing: 180 });
-                        b.setPiece(1, 3, { type: 'c_peon', color: 'b', facing: 180 });
-                    }
-                },
-                {
-                    title: "2. Reclutamiento de Ejército (Drafting)",
-                    icon: "📜",
-                    summary: "Al inicio, Blancas y Negras alternan 12 turnos para conformar su ejército personalizado.",
-                    details: [
-                        "<strong>Peones (5 unidades):</strong> Elige entre Peones, Damas, Lobos, Escuderos o Guardias.",
-                        "<strong>Élites (4 unidades):</strong> Selecciona 4 tropas élite de entre 10 opciones de combate.",
-                        "<strong>Comandante (1 unidad):</strong> Elige tu líder (Rey, Reina, Dragón, Gigante o Mago)."
-                    ],
-                    visualType: "badge_box",
-                    badges: [
-                        { label: "Peones", value: "5 Unidades" },
-                        { label: "Élites", value: "4 Unidades" },
-                        { label: "Comandante", value: "1 Unidad" }
-                    ],
-                    setup: (b) => {
-                        b.clear();
-                        // White army (4 elites + 1 commander)
+                        // White army (5 pawns + 4 elites + 1 commander)
                         [1,2,3,4,5].forEach(c => b.setPiece(5, c, { type: 'c_escudero', color: 'w', facing: 0 }));
                         b.setPiece(6, 1, { type: 'c_soldado', color: 'w', facing: 0 });
                         b.setPiece(6, 2, { type: 'c_arquero', color: 'w', facing: 0 });
                         b.setPiece(6, 3, { type: 'c_dragon', color: 'w', facing: 0 });
                         b.setPiece(6, 4, { type: 'c_canon', color: 'w', facing: 0 });
                         b.setPiece(6, 5, { type: 'c_defensor', color: 'w', facing: 0 });
-                        // Black army (4 elites + 1 commander)
+                        // Black army (5 pawns + 4 elites + 1 commander)
                         [1,2,3,4,5].forEach(c => b.setPiece(1, c, { type: 'c_lobo', color: 'b', facing: 180 }));
                         b.setPiece(0, 1, { type: 'c_mercenario', color: 'b', facing: 180 });
                         b.setPiece(0, 2, { type: 'c_piquetero', color: 'b', facing: 180 });
@@ -182,14 +159,43 @@ const TutorialTab = {
                     }
                 },
                 {
+                    title: "2. Reclutamiento de Ejército",
+                    icon: "📜",
+                    summary: "Antes de mover en el tablero, cada bando selecciona las unidades que conformarán sus filas.",
+                    details: [
+                        "<strong>Peones (5 unidades):</strong> Elige entre Peones, Damas, Lobos, Escuderos o Guardias.",
+                        "<strong>Élites (4 unidades):</strong> Selecciona 4 tropas élite de entre 10 opciones de combate para tus flancos.",
+                        "<strong>Comandante (1 unidad):</strong> Elige a tu líder supremo (Rey, Reina, Dragón, Gigante o Mago).",
+                        "<strong>¡Prueba en Vivo!:</strong> Juega la fase de elección con Blancas contra el Bot y arma tu ejército."
+                    ],
+                    visualType: "badge_box",
+                    badges: [
+                        { label: "Peones", value: "5 Unidades" },
+                        { label: "Élites", value: "4 Unidades" },
+                        { label: "Comandante", value: "1 Unidad" }
+                    ],
+                    mode: 'ai',
+                    playerSide: 'w',
+                    customInit: (ctrl) => {
+                        ctrl.matchOptions.isTutorial = true;
+                        ctrl.matchOptions.mode = 'ai';
+                        ctrl.matchOptions.playerSide = 'w';
+                        ctrl.boardEngine.setupContinentalDraft();
+                        ctrl.boardRenderer.render();
+                        ctrl.startContinentalDraft();
+                    }
+                },
+                {
                     title: "3. Puntuación y Condición de Victoria",
                     isVictorySlide: true,
+                    showPoints: true,
                     icon: "🏆",
                     summary: "Ganas iniciando tu turno con 6 o más puntos en el tablero frente a 5 o menos del enemigo.",
                     details: [
                         "<strong>Puntos:</strong> Peón = 1 pt | Élite = 2 pts | Comandante = 3 pts (Rey = 6 pts).",
-                        "<strong>Objetivo Principal:</strong> Acumular $\\ge 6$ puntos mientras tu oponente posee $\\le 5$.",
-                        "<strong>Objetivo Secundario:</strong> Aniquilar totalmente el ejército rival."
+                        "<strong>Objetivo Principal:</strong> Iniciar tu turno acumulando $\\ge 6$ puntos mientras tu oponente posee $\\le 5$.",
+                        "<strong>Objetivo Secundario:</strong> Aniquilar totalmente el ejército rival.",
+                        "<strong>Contador de Puntos:</strong> Mira el panel superior de práctica para ver los puntos en tiempo real."
                     ],
                     visualType: "badge_box",
                     badges: [
@@ -199,24 +205,24 @@ const TutorialTab = {
                     ],
                     setup: (b) => {
                         b.clear();
-                        // White has 7 pts: Dragón (3 pts) + Soldado (2 pts) + Torre (2 pts)
-                        b.setPiece(6, 3, { type: 'c_dragon', color: 'w', facing: 0 });
+                        // White has 6 pts: Dama (3 pts) + Soldado (2 pts) + Escudero (1 pt)
+                        b.setPiece(6, 3, { type: 'c_reina', color: 'w', facing: 0 });
                         b.setPiece(6, 1, { type: 'c_soldado', color: 'w', facing: 0 });
-                        b.setPiece(6, 5, { type: 'c_torre', color: 'w', facing: 0 });
-                        // Black has 4 pts: 2 Lobos (2 pts) + Mercenario (2 pts)
+                        b.setPiece(6, 5, { type: 'c_escudero', color: 'w', facing: 0 });
+                        // Black has 6 pts: 1 Lobo (1 pt) + Mercenario (2 pts) + General/Reina (3 pts)
                         b.setPiece(0, 2, { type: 'c_lobo', color: 'b', facing: 180 });
-                        b.setPiece(0, 4, { type: 'c_lobo', color: 'b', facing: 180 });
+                        b.setPiece(0, 4, { type: 'c_reina', color: 'b', facing: 180 });
                         b.setPiece(0, 3, { type: 'c_mercenario', color: 'b', facing: 180 });
                     }
                 },
                 {
                     title: "4. Orientación y Piezas Octogonales",
                     icon: "🧭",
-                    summary: "Piezas octogonales (Cañón, Defensor, Dragón) apuntan en 8 direcciones a 45°.",
+                    summary: "Piezas octogonales (Cañón, Defensor, Dragón, Mago) apuntan en 8 direcciones a 45°.",
                     details: [
                         "<strong>Flechas Giratorias:</strong> Solo giran las flechitas flotantes; el dibujo de la pieza se mantiene erguido.",
                         "<strong>Selector de Brújula:</strong> Tras mover o atacar, orientas tu pieza hacia la dirección elegida.",
-                        "<strong>Pasar y Rotar:</strong> Puedes renunciar a tu movimiento para reorientar una pieza."
+                        "<strong>Pasar Turno y Rotar:</strong> Puedes pulsar el botón <em>'Pasar y Rotar'</em> en el HUD si deseas reorientar una pieza octogonal sin moverla, o simplemente pasar tu turno."
                     ],
                     visualType: "badge_box",
                     badges: [
@@ -226,15 +232,17 @@ const TutorialTab = {
                     ],
                     setup: (b) => {
                         b.clear();
+                        // White army: Cañón, Defensor, Dragón, Mago
                         b.setPiece(5, 3, { type: 'c_canon', color: 'w', facing: 0 });
                         b.setPiece(6, 2, { type: 'c_defensor', color: 'w', facing: 0 });
                         b.setPiece(6, 4, { type: 'c_dragon', color: 'w', facing: 0 });
+                        b.setPiece(6, 3, { type: 'c_mago', color: 'w', facing: 0 });
                         
-                        b.setPiece(1, 2, { type: 'c_lobo', color: 'b', facing: 180 });
-                        b.setPiece(1, 3, { type: 'c_lobo', color: 'b', facing: 180 });
-                        b.setPiece(1, 4, { type: 'c_lobo', color: 'b', facing: 180 });
-                        b.setPiece(0, 3, { type: 'c_mercenario', color: 'b', facing: 180 });
-                        b.setPiece(0, 4, { type: 'c_arquero', color: 'b', facing: 180 });
+                        // Black army: exact same pieces mirrored
+                        b.setPiece(1, 3, { type: 'c_canon', color: 'b', facing: 180 });
+                        b.setPiece(0, 4, { type: 'c_defensor', color: 'b', facing: 180 });
+                        b.setPiece(0, 2, { type: 'c_dragon', color: 'b', facing: 180 });
+                        b.setPiece(0, 3, { type: 'c_mago', color: 'b', facing: 180 });
                     }
                 },
                 {
@@ -242,64 +250,95 @@ const TutorialTab = {
                     icon: "💥",
                     summary: "Prueba el rayo devastador del Cañón, los disparos del Arquero/Mago y los lanzamientos del Gigante.",
                     details: [
-                        "<strong>Cañón (💣):</strong> Dispara un rayo de 3 casillas destruyendo a TODAS las piezas en la línea. (1 turno de enfriamiento).",
-                        "<strong>Arquero (🏹):</strong> Dispara SIEMPRE a distancia sin moverse de su casilla.",
-                        "<strong>Mago (🧙):</strong> Permite <em>Disparar</em> o <em>Comer</em> y cambia entre Forma Soldado y Mercenario.",
-                        "<strong>Gigante (🧌):</strong> Permite <em>Comer</em>, <em>Intercambiar</em> o <em>Arrojar</em> piezas a 1 casilla alrededor sin moverse."
+                        "<strong>Cañón (💣):</strong> Dispara un rayo frontal de 3 casillas destruyendo a TODAS las piezas en la línea. ¡Destruye a los 3 soldados enemigos en fila!",
+                        "<strong>Arquero (🏹) y Mago (🧙):</strong> Disparan a distancia sin moverse de su casilla. El Mago puede cambiar entre Forma Soldado y Mercenario.",
+                        "<strong>Gigante (🧌):</strong> Puede <em>Devorar</em> o <em>Arrojar</em> piezas adyacentes a 1 casilla de distancia. Si arroja una pieza sobre otra, ¡ambas mueren aplastadas!",
+                        "<strong>Rey (♚):</strong> Vale 6 puntos, lo que te permite sacrificar a todo tu ejército y ganar. En modos sin puntuación (como Captura el Centro), otorga 4 Puntos de Refuerzo adicionales.",
+                        "<strong>Lobos (🐺), Escuderos (🛡️) y Defensor (🔰):</strong> Los Lobos avanzan en manada tras mover; los Escuderos aplican Retribución al frente y a los lados; el Defensor es inmune a ser comido por las 3 casillas a donde apuntan sus flechas.",
+                        "<strong>¡Turno Libre!:</strong> En esta práctica puedes mover libremente con Blancas para probar todas las habilidades."
                     ],
                     visualType: "piece_grid",
                     pieces: [
-                        { name: "Cañón", glyph: "💣", desc: "Rayo multi-baja en línea" },
-                        { name: "Arquero", glyph: "🏹", desc: "Disparo a distancia (NUNCA avanza)" },
-                        { name: "Gigante", glyph: "🧌", desc: "Arroja, Come o Intercambia" }
+                        { name: "Cañón", glyph: "💣", desc: "Rayo multi-baja de 3 casillas" },
+                        { name: "Arquero / Mago", glyph: "🏹", desc: "Disparo a distancia sin moverse" },
+                        { name: "Gigante", glyph: "🧌", desc: "Arroja (impacto mutuo) o Come" }
                     ],
+                    alwaysWhiteTurn: true,
                     setup: (b) => {
                         b.clear();
                         b.setPiece(5, 1, { type: 'c_arquero', color: 'w', facing: 0 });
                         b.setPiece(5, 2, { type: 'c_mago', color: 'w', facing: 0 });
                         b.setPiece(5, 3, { type: 'c_canon', color: 'w', facing: 0 });
                         b.setPiece(5, 4, { type: 'c_gigante', color: 'w', facing: 0 });
-                        // Targets and extra enemies
-                        b.setPiece(3, 1, { type: 'c_lobo', color: 'b', facing: 180 });
+                        b.setPiece(6, 3, { type: 'c_rey', color: 'w', facing: 0 });
+                        b.setPiece(6, 2, { type: 'c_escudero', color: 'w', facing: 0 });
+                        b.setPiece(6, 4, { type: 'c_defensor', color: 'w', facing: 0 });
+
+                        // Enemy targets:
+                        // 3 soldiers in front of Cannon (moved 2 blocks down)
+                        b.setPiece(4, 3, { type: 'c_soldado', color: 'b', facing: 180 });
+                        b.setPiece(3, 3, { type: 'c_soldado', color: 'b', facing: 180 });
                         b.setPiece(2, 3, { type: 'c_soldado', color: 'b', facing: 180 });
-                        b.setPiece(1, 3, { type: 'c_soldado', color: 'b', facing: 180 });
-                        b.setPiece(0, 3, { type: 'c_soldado', color: 'b', facing: 180 });
-                        b.setPiece(5, 5, { type: 'c_lobo', color: 'b', facing: 180 });
-                        b.setPiece(1, 2, { type: 'c_lobo', color: 'b', facing: 180 });
-                        b.setPiece(1, 4, { type: 'c_lobo', color: 'b', facing: 180 });
+
+                        // Wolves:
+                        b.setPiece(3, 1, { type: 'c_lobo', color: 'b', facing: 180 }); // 1st wolf
+                        b.setPiece(3, 2, { type: 'c_lobo', color: 'b', facing: 180 }); // 2nd wolf (2 blocks down)
+                        b.setPiece(3, 4, { type: 'c_lobo', color: 'b', facing: 180 }); // 3rd wolf (2 blocks down)
+                        b.setPiece(4, 5, { type: 'c_lobo', color: 'b', facing: 180 }); // 4th wolf (1 block up)
                     }
                 },
                 {
                     title: "6. Tablas y Refuerzos",
                     icon: "🪖",
-                    summary: "En caso de empate, ambos bandos subastan y despliegan puntos de refuerzo.",
+                    summary: "En caso de empate, ambos bandos subastan y despliegan puntos de refuerzo para continuar la batalla.",
                     details: [
-                        "<strong>Subasta:</strong> Ante 3 repeticiones, se negocian 1–8 puntos en 4 rondas de ofertas.",
-                        "<strong>Despliegue:</strong> Se colocan refuerzos en la fila 'a' (Blancas) y fila 'g' (Negras).",
-                        "<strong>Banco de Reserva:</strong> Los puntos no usados quedan guardados para invocar tropas al vaciar casillas."
+                        "<strong>Subasta Interactiva:</strong> Juega con Blancas contra el Bot para negociar cuántos puntos de refuerzo recibirá cada bando.",
+                        "<strong>Botón 'Ver Tablero' (👁️):</strong> Puedes hacer clic en 'Ver Tablero' dentro del menú para inspeccionar la posición antes de ofertar.",
+                        "<strong>Límite de 2 Subastas:</strong> Los refuerzos solo pueden solicitarse hasta 2 veces por partida. A la 3ª ocasión la partida concluye en Tablas Definitivas.",
+                        "<strong>Límites y Valores por Defecto:</strong>",
+                        "• <em>1ª Subasta:</em> Se oferta de 1 a 8 puntos (si no hay acuerdo tras 4 rondas, se otorgan <strong>4 puntos</strong> por defecto).",
+                        "• <em>2ª Subasta:</em> Se oferta de 1 a 4 puntos (si no hay acuerdo, se otorgan <strong>2 puntos</strong> por defecto).",
+                        "<strong>Banco de Reserva:</strong> Los puntos no gastados quedan guardados y se invocarán apenas se libere espacio en tu fila inicial (fila 'a' para Blancas, fila 'g' para Negras)."
                     ],
                     visualType: "badge_box",
                     badges: [
-                        { label: "Subasta", value: "1 a 8 Puntos (4 rondas)" },
-                        { label: "Despliegue", value: "Fila 'a' (Bl) / Fila 'g' (Ng)" },
-                        { label: "Reserva", value: "Invocación al vaciar fila" }
+                        { label: "1ª Subasta", value: "1 a 8 Pts (4 por defecto)" },
+                        { label: "2ª Subasta", value: "1 a 4 Pts (2 por defecto)" },
+                        { label: "Límite", value: "Máx 2 Veces por Partida" }
                     ],
-                    setup: (b) => {
-                        b.clear();
-                        b.setPiece(6, 2, { type: 'c_peon', color: 'w', facing: 0 });
-                        b.setPiece(6, 4, { type: 'c_soldado', color: 'w', facing: 0 });
-                        b.setPiece(0, 1, { type: 'c_lobo', color: 'b', facing: 180 });
-                        b.setPiece(0, 5, { type: 'c_piquetero', color: 'b', facing: 180 });
+                    mode: 'ai',
+                    playerSide: 'w',
+                    customInit: (ctrl) => {
+                        ctrl.matchOptions.isTutorial = true;
+                        ctrl.matchOptions.mode = 'ai';
+                        ctrl.matchOptions.playerSide = 'w';
+                        ctrl.boardEngine.clear();
+                        ctrl.boardEngine.setPiece(6, 2, { type: 'c_peon', color: 'w', facing: 0 });
+                        ctrl.boardEngine.setPiece(6, 4, { type: 'c_soldado', color: 'w', facing: 0 });
+                        ctrl.boardEngine.setPiece(0, 1, { type: 'c_lobo', color: 'b', facing: 180 });
+                        ctrl.boardEngine.setPiece(0, 5, { type: 'c_piquetero', color: 'b', facing: 180 });
+                        ctrl.boardRenderer.render();
+                        setTimeout(() => {
+                            ctrl.openDrawNegotiationModal();
+                        }, 150);
                     }
                 }
             ]
         }
     },
 
+    reset() {
+        document.querySelectorAll('.floating-popup-wrapper, #modal-draft-choice, #modal-board-inspection-bar, #modal-board-inspection-blocker, .modal-overlay').forEach(el => el.remove());
+        this.selectedTutorial = null;
+        this.currentStep = 0;
+        this.sandboxController = null;
+    },
+
     render(container) {
         if (!container) return;
 
         if (this.selectedTutorial === null) {
+            this.reset();
             this.renderSelector(container);
         } else {
             this.renderStepView(container);
@@ -316,7 +355,7 @@ const TutorialTab = {
 
                 <div class="tutorial-cards-grid">
                     <!-- Card 1: Ajedrez Clásico -->
-                    <div class="tutorial-select-card glass-panel" id="card-tut-ajedrez">
+                    <div class="tutorial-select-card glass-panel" id="card-tut-ajedrez" data-mode="ajedrez">
                         <div class="tut-card-badge">Principiantes</div>
                         <div class="tut-card-icon">♟️</div>
                         <h2 class="tut-card-title">Ajedrez Clásico</h2>
@@ -327,7 +366,7 @@ const TutorialTab = {
                     </div>
 
                     <!-- Card 2: Continental -->
-                    <div class="tutorial-select-card glass-panel" id="card-tut-continental">
+                    <div class="tutorial-select-card glass-panel" id="card-tut-continental" data-mode="continental">
                         <div class="tut-card-badge badge-war">Modo Táctico</div>
                         <div class="tut-card-icon">⚔️</div>
                         <h2 class="tut-card-title">Continental</h2>
@@ -345,10 +384,13 @@ const TutorialTab = {
     },
 
     bindSelectorEvents(container) {
-        container.querySelectorAll('.btn-start-tut').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const mode = e.currentTarget.getAttribute('data-mode');
+        container.querySelectorAll('.tutorial-select-card, .btn-start-tut').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const card = e.currentTarget.closest('.tutorial-select-card') || e.currentTarget;
+                const mode = card ? card.getAttribute('data-mode') : e.currentTarget.getAttribute('data-mode');
                 if (mode && this.tutorials[mode]) {
+                    document.querySelectorAll('.floating-popup-wrapper, #modal-draft-choice, #modal-board-inspection-bar, #modal-board-inspection-blocker, .modal-overlay').forEach(popup => popup.remove());
                     this.selectedTutorial = mode;
                     this.currentStep = 0;
                     this.renderStepView(container);
@@ -365,6 +407,7 @@ const TutorialTab = {
             return;
         }
 
+        const isContinental = (this.selectedTutorial === 'continental');
         const step = tutData.steps[this.currentStep];
         const totalSteps = tutData.steps.length;
         const progressPercent = Math.round(((this.currentStep + 1) / totalSteps) * 100);
@@ -437,9 +480,15 @@ const TutorialTab = {
                 </div>
 
                 <!-- Interactive Sandbox Board (Live Practical Board) -->
-                <div class="tut-sandbox-panel glass-panel">
+                <div class="tut-sandbox-panel glass-panel" style="position: relative;">
                     <div class="tut-sandbox-header">
                         <span class="tut-sb-title">🎮 Práctica Interactiva en Vivo</span>
+                        ${isContinental ? `
+                            <div id="tut-points-hud" style="font-size: 0.85rem; font-weight: bold; background: rgba(0,0,0,0.45); padding: 4px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); display: flex; gap: 10px; align-items: center;">
+                                <span>⚪ Blancas: <span id="tut-score-w" style="color: #60a5fa;">0</span> pts</span>
+                                <span>⚫ Negras: <span id="tut-score-b" style="color: #f87171;">0</span> pts</span>
+                            </div>
+                        ` : ''}
                         <button class="action-btn secondary-btn small-btn" id="btn-tut-reset-board">🔄 Reiniciar Posición</button>
                     </div>
                     <div class="board-outer-wrapper">
@@ -475,16 +524,22 @@ const TutorialTab = {
         const boardEl = document.getElementById('tut-board-container');
         if (!boardEl) return;
 
+        // Cleanup any leftover popups or modals from previous tutorial step / resets
+        document.querySelectorAll('.floating-popup-wrapper, #modal-draft-choice, #modal-board-inspection-bar, #modal-board-inspection-blocker, .modal-overlay').forEach(el => el.remove());
+
         const isContinental = (this.selectedTutorial === 'continental');
         
         const dummyHud = document.createElement('div');
         this.sandboxController = new GameController(boardEl, dummyHud);
         
-        // Manually configure the controller for Sandbox mode
+        // Configure controller for Sandbox tutorial mode
         this.sandboxController.matchOptions = { 
-            mode: 'local', 
+            mode: step.mode || 'local', 
+            playerSide: step.playerSide || 'w',
             gameType: isContinental ? 'continental_sandbox' : 'classic_sandbox',
-            disableVictory: !step.isVictorySlide
+            disableVictory: !step.isVictorySlide,
+            isTutorial: true,
+            alwaysWhiteTurn: !!step.alwaysWhiteTurn
         };
         
         const rows = isContinental ? 7 : 8;
@@ -498,7 +553,27 @@ const TutorialTab = {
             }
         });
 
-        if (step && typeof step.setup === 'function') {
+        // Live Points HUD updater
+        const updatePointsHud = () => {
+            const wScoreEl = document.getElementById('tut-score-w');
+            const bScoreEl = document.getElementById('tut-score-b');
+            if (wScoreEl && bScoreEl && isContinental && this.sandboxController?.rulesEngine) {
+                const wPts = this.sandboxController.rulesEngine.getArmyPoints('w');
+                const bPts = this.sandboxController.rulesEngine.getArmyPoints('b');
+                wScoreEl.textContent = wPts;
+                bScoreEl.textContent = bPts;
+            }
+        };
+
+        const origRender = this.sandboxController.boardRenderer.render.bind(this.sandboxController.boardRenderer);
+        this.sandboxController.boardRenderer.render = () => {
+            origRender();
+            updatePointsHud();
+        };
+
+        if (step && typeof step.customInit === 'function') {
+            step.customInit(this.sandboxController);
+        } else if (step && typeof step.setup === 'function') {
             step.setup(this.sandboxController.boardEngine);
         }
 
@@ -506,10 +581,12 @@ const TutorialTab = {
         this.sandboxController.selectedSquare = null;
         this.sandboxController.selectedLegalMoves = [];
         this.sandboxController.boardRenderer.render();
+        updatePointsHud();
     },
 
     bindStepEvents(container) {
         document.getElementById('btn-tut-change-mode')?.addEventListener('click', () => {
+            document.querySelectorAll('.floating-popup-wrapper, #modal-draft-choice, #modal-board-inspection-bar, #modal-board-inspection-blocker, .modal-overlay').forEach(el => el.remove());
             this.selectedTutorial = null;
             this.currentStep = 0;
             this.renderSelector(container);
@@ -524,6 +601,7 @@ const TutorialTab = {
         });
 
         document.getElementById('btn-tut-prev')?.addEventListener('click', () => {
+            document.querySelectorAll('.floating-popup-wrapper, #modal-draft-choice, #modal-board-inspection-bar, #modal-board-inspection-blocker, .modal-overlay').forEach(el => el.remove());
             if (this.currentStep > 0) {
                 this.currentStep--;
                 this.renderStepView(container);
@@ -531,6 +609,7 @@ const TutorialTab = {
         });
 
         document.getElementById('btn-tut-next')?.addEventListener('click', () => {
+            document.querySelectorAll('.floating-popup-wrapper, #modal-draft-choice, #modal-board-inspection-bar, #modal-board-inspection-blocker, .modal-overlay').forEach(el => el.remove());
             const tutData = this.tutorials[this.selectedTutorial];
             if (tutData && this.currentStep < tutData.steps.length - 1) {
                 this.currentStep++;
@@ -539,6 +618,7 @@ const TutorialTab = {
         });
 
         document.getElementById('btn-tut-play')?.addEventListener('click', () => {
+            document.querySelectorAll('.floating-popup-wrapper, #modal-draft-choice, #modal-board-inspection-bar, #modal-board-inspection-blocker, .modal-overlay').forEach(el => el.remove());
             if (typeof MatchSetupModal !== 'undefined') {
                 MatchSetupModal.open();
             }
