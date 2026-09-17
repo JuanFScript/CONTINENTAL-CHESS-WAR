@@ -99,6 +99,36 @@ const OptionsTab = {
                         <div class="setting-control">
                             <select id="opt-piece-style-select" class="custom-select">
                                 <option value="default" ${currentPieceStyle === 'default' ? 'selected' : ''}>Default (Oficial)</option>
+                                
+                                <optgroup label="🎨 Ficticios / Fantasía">
+                                    <option value="medieval_real" ${currentPieceStyle === 'medieval_real' ? 'selected' : ''}>Medieval Realista (Personas)</option>
+                                    <option value="pixel_fantasy" ${currentPieceStyle === 'pixel_fantasy' ? 'selected' : ''}>Pixel Art Fantasía</option>
+                                    <option value="pixel_retro" ${currentPieceStyle === 'pixel_retro' ? 'selected' : ''}>Pixel Art Retro (8-bits)</option>
+                                    <option value="crystal_jewel" ${currentPieceStyle === 'crystal_jewel' ? 'selected' : ''}>Cuarzo, Bronce & Amatista</option>
+                                    <option value="anime" ${currentPieceStyle === 'anime' ? 'selected' : ''}>Estilo Anime</option>
+                                    <option value="scifi" ${currentPieceStyle === 'scifi' ? 'selected' : ''}>Sci-Fi Futuro</option>
+                                    <option value="steampunk" ${currentPieceStyle === 'steampunk' ? 'selected' : ''}>Steampunk</option>
+                                    <option value="cyborg" ${currentPieceStyle === 'cyborg' ? 'selected' : ''}>Cyborgs & Neón</option>
+                                </optgroup>
+
+                                <optgroup label="🏛️ Históricos / Culturales">
+                                    <option value="colonizers_natives" ${currentPieceStyle === 'colonizers_natives' ? 'selected' : ''}>Colonizadores vs Nativos</option>
+                                    <option value="aztec_maya" ${currentPieceStyle === 'aztec_maya' ? 'selected' : ''}>Aztecas vs Mayas</option>
+                                    <option value="pirates_royal" ${currentPieceStyle === 'pirates_royal' ? 'selected' : ''}>Piratas vs Flota Real</option>
+                                    <option value="medieval_uk_fr" ${currentPieceStyle === 'medieval_uk_fr' ? 'selected' : ''}>Medieval Inglés vs Francés</option>
+                                    <option value="reconquista" ${currentPieceStyle === 'reconquista' ? 'selected' : ''}>Reconquista Española</option>
+                                    <option value="samurai_ninja" ${currentPieceStyle === 'samurai_ninja' ? 'selected' : ''}>Samuráis & Ninjas</option>
+                                    <option value="gauchos" ${currentPieceStyle === 'gauchos' ? 'selected' : ''}>Gauchos Tradicionales</option>
+                                    <option value="roman" ${currentPieceStyle === 'roman' ? 'selected' : ''}>Imperio Romano</option>
+                                    <option value="mongol" ${currentPieceStyle === 'mongol' ? 'selected' : ''}>Imperio Mongol</option>
+                                    <option value="indian" ${currentPieceStyle === 'indian' ? 'selected' : ''}>Cultura India Antigua</option>
+                                    <option value="african" ${currentPieceStyle === 'african' ? 'selected' : ''}>Arte Tribal Africano</option>
+                                    <option value="inuit_polar" ${currentPieceStyle === 'inuit_polar' ? 'selected' : ''}>Inuit & Polo Norte</option>
+                                    <option value="sparta_athens" ${currentPieceStyle === 'sparta_athens' ? 'selected' : ''}>Esparta vs Atenas</option>
+                                    <option value="macedon_persia" ${currentPieceStyle === 'macedon_persia' ? 'selected' : ''}>Macedonia vs Persia</option>
+                                    <option value="ww2" ${currentPieceStyle === 'ww2' ? 'selected' : ''}>Segunda Guerra Mundial</option>
+                                    <option value="coldwar" ${currentPieceStyle === 'coldwar' ? 'selected' : ''}>Guerra Fría (EEUU vs URSS)</option>
+                                </optgroup>
                             </select>
                         </div>
                     </div>

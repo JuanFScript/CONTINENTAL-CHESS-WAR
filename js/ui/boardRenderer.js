@@ -176,38 +176,41 @@ class BoardRenderer {
                         const imgEl = document.createElement('img');
                         imgEl.className = 'piece-img';
                         imgEl.alt = `${piece.color} ${piece.type}`;
-                        imgEl.src = `Imagenes de las piezas/${esName}_${style}.svg?v=73`;
+                        
+                        const initialExt = style === 'default' ? 'svg' : 'png';
+                        imgEl.src = `Imagenes de las piezas/${esName}_${style}.${initialExt}?v=81`;
 
                         imgEl.onerror = function() {
-                            if (!this.dataset.fb1) {
-                                this.dataset.fb1 = 'true';
-                                this.src = `imagenes-de-las-piezas/${esName}_${style}.svg?v=73`;
-                            } else if (!this.dataset.fb2) {
-                                this.dataset.fb2 = 'true';
-                                this.src = `Imagenes de las piezas/${code}_${style}.svg?v=73`;
-                            } else if (!this.dataset.fb3) {
-                                this.dataset.fb3 = 'true';
-                                this.src = `imagenes-de-las-piezas/${code}_${style}.svg?v=73`;
-                            } else if (!this.dataset.fb4) {
-                                this.dataset.fb4 = 'true';
-                                this.src = `Imagenes de las piezas/${esName}_default.svg?v=73`;
-                            } else if (!this.dataset.fb5) {
-                                this.dataset.fb5 = 'true';
-                                this.src = `imagenes-de-las-piezas/${esName}_default.svg?v=73`;
-                            } else if (!this.dataset.fb6) {
-                                this.dataset.fb6 = 'true';
-                                this.src = `Imagenes de las piezas/${code}.svg?v=73`;
-                            } else if (!this.dataset.fb7) {
-                                this.dataset.fb7 = 'true';
-                                this.src = `imagenes-de-las-piezas/${code}.svg?v=73`;
-                            } else if (!this.dataset.fb8) {
-                                this.dataset.fb8 = 'true';
+                            const step = parseInt(this.dataset.fbStep || '0', 10) + 1;
+                            this.dataset.fbStep = step.toString();
+
+                            if (step === 1) {
+                                this.src = `imagenes-de-las-piezas/${esName}_${style}.${initialExt}?v=81`;
+                            } else if (step === 2 && style !== 'default') {
+                                this.src = `Imagenes de las piezas/${esName}_${style}.webp?v=81`;
+                            } else if (step === 3 && style !== 'default') {
+                                this.src = `imagenes-de-las-piezas/${esName}_${style}.webp?v=81`;
+                            } else if (step === 4 && style !== 'default') {
+                                this.src = `Imagenes de las piezas/${esName}_${style}.svg?v=81`;
+                            } else if (step === 5 && style !== 'default') {
+                                this.src = `imagenes-de-las-piezas/${esName}_${style}.svg?v=81`;
+                            } else if (step === 6) {
+                                this.src = `Imagenes de las piezas/${esName}_default.svg?v=81`;
+                            } else if (step === 7) {
+                                this.src = `imagenes-de-las-piezas/${esName}_default.svg?v=81`;
+                            } else if (step === 8) {
+                                this.src = `Imagenes de las piezas/${esName}.svg?v=81`;
+                            } else if (step === 9) {
+                                this.src = `imagenes-de-las-piezas/${esName}.svg?v=81`;
+                            } else {
                                 this.style.display = 'none';
-                                const fallbackSym = reg ? reg.symbol : piece.type;
-                                const symSpan = document.createElement('span');
-                                symSpan.className = 'piece-custom-symbol';
-                                symSpan.textContent = fallbackSym;
-                                pieceEl.appendChild(symSpan);
+                                if (!this.parentElement.querySelector('.piece-custom-symbol')) {
+                                    const fallbackSym = reg ? reg.symbol : piece.type;
+                                    const symSpan = document.createElement('span');
+                                    symSpan.className = 'piece-custom-symbol';
+                                    symSpan.textContent = fallbackSym;
+                                    pieceEl.appendChild(symSpan);
+                                }
                             }
                         };
 

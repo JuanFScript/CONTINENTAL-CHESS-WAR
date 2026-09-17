@@ -128,15 +128,18 @@ const ArmoryTab = {
         const lang = I18n.currentLang;
         const pieces = this.getFilteredPieces();
         const svgMap = {
-            'p': 'wP', 'n': 'wN', 'b': 'wB', 'r': 'wR', 'q': 'wQ', 'k': 'wK',
-            'c_peon': 'wP', 'c_torre': 'wR', 'c_alfil': 'wB', 'c_caballo': 'wN',
-            'c_rey': 'wK', 'c_reina': 'wQ',
+            'p': 'peon_blanco', 'n': 'caballo_blanco', 'b': 'alfil_blanco', 'r': 'torre_blanca', 'q': 'reina_blanca', 'k': 'rey_blanco',
+            'c_peon': 'peon_blanco', 'c_torre': 'torre_blanca', 'c_alfil': 'alfil_blanco', 'c_caballo': 'caballo_blanco',
+            'c_rey': 'rey_blanco', 'c_reina': 'reina_blanca',
             'c_dama': 'dama_blanca', 'c_lobo': 'lobo_blanco', 'c_escudero': 'escudero_blanco',
             'c_guardia': 'guardia_blanco', 'c_soldado': 'soldado_blanco', 'c_mercenario': 'mercenario_blanco',
             'c_elefante': 'elefante_blanco', 'c_piquetero': 'piquetero_blanco', 'c_arquero': 'arquero_blanco',
             'c_defensor': 'defensor_blanco', 'c_canon': 'canon_blanco', 'c_dragon': 'dragon_blanco',
             'c_gigante': 'gigante_blanco', 'c_mago': 'mago_blanco'
         };
+
+        const style = localStorage.getItem('continental_piece_style') || 'default';
+        const initialExt = style === 'default' ? 'svg' : 'png';
 
         if (pieces.length === 0) {
             container.innerHTML = '<span class="text-muted">No hay piezas en esta categoría.</span>';
@@ -150,7 +153,19 @@ const ArmoryTab = {
         container.innerHTML = pieces.map(p => {
             const svg = svgMap[p.type];
             const iconHtml = svg 
-                ? `<img src="Imagenes de las piezas/${svg}.svg" class="chip-img-icon" alt="${p.type}" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src=this.src.replace('Imagenes%20de%20las%20piezas','imagenes-de-las-piezas').replace('Imagenes de las piezas','imagenes-de-las-piezas');}">`
+                ? `<img src="Imagenes de las piezas/${svg}_${style}.${initialExt}?v=81" class="chip-img-icon" alt="${p.type}" onerror="
+                    const step = parseInt(this.dataset.fbStep || '0', 10) + 1;
+                    this.dataset.fbStep = step.toString();
+                    if (step === 1) this.src = 'imagenes-de-las-piezas/${svg}_${style}.${initialExt}?v=81';
+                    else if (step === 2 && '${style}' !== 'default') this.src = 'Imagenes de las piezas/${svg}_${style}.webp?v=81';
+                    else if (step === 3 && '${style}' !== 'default') this.src = 'imagenes-de-las-piezas/${svg}_${style}.webp?v=81';
+                    else if (step === 4 && '${style}' !== 'default') this.src = 'Imagenes de las piezas/${svg}_${style}.svg?v=81';
+                    else if (step === 5 && '${style}' !== 'default') this.src = 'imagenes-de-las-piezas/${svg}_${style}.svg?v=81';
+                    else if (step === 6) this.src = 'Imagenes de las piezas/${svg}_default.svg?v=81';
+                    else if (step === 7) this.src = 'imagenes-de-las-piezas/${svg}_default.svg?v=81';
+                    else if (step === 8) this.src = 'Imagenes de las piezas/${svg}.svg?v=81';
+                    else if (step === 9) this.src = 'imagenes-de-las-piezas/${svg}.svg?v=81';
+                ">`
                 : `<span class="chip-symbol">${p.symbol}</span>`;
             const octoHtml = p.octogonal ? `<span class="chip-tag-octo">Octo</span>` : '';
 
@@ -336,7 +351,19 @@ const ArmoryTab = {
         card.innerHTML = `
             <div class="card-hero">
                 <div class="hero-icon-container">
-                    ${svg ? `<img src="Imagenes de las piezas/${svg}.svg" class="hero-piece-img" alt="${p.name.es}" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src=this.src.replace('Imagenes%20de%20las%20piezas','imagenes-de-las-piezas').replace('Imagenes de las piezas','imagenes-de-las-piezas');}">` : `<span class="hero-piece-symbol">${p.symbol}</span>`}
+                    ${svg ? `<img src="Imagenes de las piezas/${svg}_${style}.${initialExt}?v=81" class="hero-piece-img" alt="${p.name.es}" onerror="
+                        const step = parseInt(this.dataset.fbStep || '0', 10) + 1;
+                        this.dataset.fbStep = step.toString();
+                        if (step === 1) this.src = 'imagenes-de-las-piezas/${svg}_${style}.${initialExt}?v=81';
+                        else if (step === 2 && '${style}' !== 'default') this.src = 'Imagenes de las piezas/${svg}_${style}.webp?v=81';
+                        else if (step === 3 && '${style}' !== 'default') this.src = 'imagenes-de-las-piezas/${svg}_${style}.webp?v=81';
+                        else if (step === 4 && '${style}' !== 'default') this.src = 'Imagenes de las piezas/${svg}_${style}.svg?v=81';
+                        else if (step === 5 && '${style}' !== 'default') this.src = 'imagenes-de-las-piezas/${svg}_${style}.svg?v=81';
+                        else if (step === 6) this.src = 'Imagenes de las piezas/${svg}_default.svg?v=81';
+                        else if (step === 7) this.src = 'imagenes-de-las-piezas/${svg}_default.svg?v=81';
+                        else if (step === 8) this.src = 'Imagenes de las piezas/${svg}.svg?v=81';
+                        else if (step === 9) this.src = 'imagenes-de-las-piezas/${svg}.svg?v=81';
+                    ">` : `<span class="hero-piece-symbol">${p.symbol}</span>`}
                 </div>
                 <div class="hero-text">
                     <h2>${p.name[lang] || p.name.es}</h2>

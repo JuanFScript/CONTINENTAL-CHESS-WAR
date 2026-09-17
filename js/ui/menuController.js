@@ -54,7 +54,13 @@ const MenuController = {
                 <button class="btn-close-changelog" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.1em; display: flex; align-items: center; justify-content: center; z-index: 10; transition: background 0.2s;">✖</button>
                 <h2 style="color: #ffd700; margin-top: 0; margin-bottom: 20px; font-size: 1.5em; text-align: center; position: sticky; top: -25px; background: rgba(13,42,32,0.95); padding: 15px 0 10px 0; z-index: 5;">📜 Historial de Actualizaciones</h2>
                 
-                <h3 style="color: #4ade80; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 81 (Actual)</h3>
+                <h3 style="color: #4ade80; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 82 (Actual)</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Sets Gráficos Temáticos:</strong> ¡Llegaron los temas visuales para las piezas! Ahora puedes elegir entre 24 sets gráficos distintos en las opciones (incluyendo Pixel Art, Sci-Fi, Culturas Históricas, Anime y más).</li>
+                    <li style="margin-bottom: 8px;"><strong>Carga Inteligente de Imágenes:</strong> El juego ahora maneja los gráficos de las piezas de forma dinámica, manteniendo la estabilidad y usando el set predeterminado si falta alguna imagen personalizada.</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 81</h3>
                 <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
                     <li style="margin-bottom: 8px;"><strong>UI Refinada:</strong> Se rediseñó el cartel de Puntos de Refuerzo en los menús de reclutamiento y negociación para ser más compacto y sutil.</li>
                     <li style="margin-bottom: 8px;"><strong>Arquero en Modo Prueba:</strong> Ahora se mueve en cruz de acuerdo a su orientación actual y puede rotar libremente luego de disparar.</li>
