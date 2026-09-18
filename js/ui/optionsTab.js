@@ -10,6 +10,7 @@ const OptionsTab = {
         const currentCenterTurns = localStorage.getItem('continental_center_turns') || '3';
         const currentCenterConsecutive = localStorage.getItem('continental_center_consecutive') !== 'false';
         const currentAutoRotateBlack = localStorage.getItem('continental_auto_rotate_black') !== 'false';
+        const currentSandboxMode = localStorage.getItem('continental_sandbox_mode') === 'true';
         const currentTestMode = localStorage.getItem('continental_test_mode') === 'true';
 
         const html = `
@@ -86,6 +87,20 @@ const OptionsTab = {
                         <div class="setting-control">
                             <label class="toggle-switch">
                                 <input type="checkbox" id="opt-center-consecutive-toggle" ${currentCenterConsecutive ? 'checked' : ''}>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- MODO AMISTOSO / SANDBOX -->
+                    <div class="setting-row">
+                        <div class="setting-label">
+                            <strong>Modo Amistoso / Sandbox</strong>
+                            <span class="setting-sub">Activa el botón para deshacer movimientos (↩️ Deshacer) en partidas</span>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="opt-sandbox-mode-toggle" ${currentSandboxMode ? 'checked' : ''}>
                                 <span class="slider"></span>
                             </label>
                         </div>
@@ -340,6 +355,7 @@ const OptionsTab = {
             const themeSelect = document.getElementById('opt-theme-select');
             const centerTurnsSelect = document.getElementById('opt-center-turns-select');
             const centerConsecutiveToggle = document.getElementById('opt-center-consecutive-toggle');
+            const sandboxModeToggle = document.getElementById('opt-sandbox-mode-toggle');
             const testModeToggle = document.getElementById('opt-test-mode-toggle');
 
             if (langSelect) I18n.setLanguage(langSelect.value);
@@ -376,6 +392,9 @@ const OptionsTab = {
             }
             if (centerConsecutiveToggle) {
                 localStorage.setItem('continental_center_consecutive', centerConsecutiveToggle.checked);
+            }
+            if (sandboxModeToggle) {
+                localStorage.setItem('continental_sandbox_mode', sandboxModeToggle.checked);
             }
             const autoRotateToggle = document.getElementById('opt-auto-rotate-black-toggle');
             if (autoRotateToggle) {

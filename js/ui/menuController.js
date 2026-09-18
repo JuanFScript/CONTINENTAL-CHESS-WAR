@@ -54,12 +54,20 @@ const MenuController = {
                 <button class="btn-close-changelog" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.1em; display: flex; align-items: center; justify-content: center; z-index: 10; transition: background 0.2s;">✖</button>
                 <h2 style="color: #ffd700; margin-top: 0; margin-bottom: 20px; font-size: 1.5em; text-align: center; position: sticky; top: -25px; background: rgba(13,42,32,0.95); padding: 15px 0 10px 0; z-index: 5;">📜 Historial de Actualizaciones</h2>
                 
-                <h3 style="color: #4ade80; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 83 (Actual)</h3>
+                <h3 style="color: #4ade80; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 84 (Actual)</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Modo Amistoso / Sandbox:</strong> Nueva opción en el menú que añade un botón para deshacer movimientos ilimitadamente. Ideal para aprender a jugar.</li>
+                    <li style="margin-bottom: 8px;"><strong>Lógica del Cañón:</strong> Se arregló el disparo del cañón y su movimiento, apuntando automáticamente a objetivos ocupados y permitiendo su avance.</li>
+                    <li style="margin-bottom: 8px;"><strong>Retribución del Escudero:</strong> Se ajustó para que ya no contraataque ataques a distancia (Magos, Arqueros, Cañones, Gigantes) por todo el mapa.</li>
+                    <li style="margin-bottom: 8px;"><strong>Inteligencia Artificial:</strong> Revertida la rotación y control erróneo de piezas. La IA ahora juega de forma más sólida sin desordenar el tablero.</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 83</h3>
                 <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
                     <li style="margin-bottom: 8px;"><strong>24 Sets de Texturas en Carpetas Dedicadas:</strong> Se organizaron y generaron todas las piezas temáticas con carpetas individuales limpias para cada cultura y estilo de fantasía.</li>
-                    <li style="margin-bottom: 8px;"><strong>Modo Versus (Blancas vs Negras):</strong> Los sets de enfrentamiento histórico (Colonizadores vs Nativos, Aztecas vs Mayas, Piratas vs Flota Real, Esparta vs Atenas, etc.) cuentan con gráficos y emblemas únicos para cada bando.</li>
-                    <li style="margin-bottom: 8px;"><strong>Precarga Instantánea y Fluidez 60 FPS:</strong> Se eliminó por completo el retraso al abrir la Armería o el tablero mediante precarga en memoria caché.</li>
-                    <li style="margin-bottom: 8px;"><strong>Flechas Direccionales Temáticas:</strong> Flechas con diseños únicos por set que respetan los 3 colores obligatorios del Cañón (Gris, Amarillo, Rojo), el Violeta del Mago, Azul del Defensor, Naranja del Dragón y Verde del Arquero.</li>
+                    <li style="margin-bottom: 8px;"><strong>Modo Versus (Blancas vs Negras):</strong> Los sets de enfrentamiento histórico cuentan con gráficos y emblemas únicos para cada bando.</li>
+                    <li style="margin-bottom: 8px;"><strong>Precarga Instantánea:</strong> Se eliminó por completo el retraso al abrir la Armería o el tablero mediante precarga en memoria caché.</li>
+                    <li style="margin-bottom: 8px;"><strong>Flechas Direccionales Temáticas:</strong> Flechas con diseños únicos por set que respetan los colores obligatorios.</li>
                 </ul>
 
                 <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 82</h3>

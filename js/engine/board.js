@@ -52,6 +52,21 @@ class BoardEngine {
     }
 
     /**
+     * Deep clone grid state for undo / snapshots
+     */
+    cloneGrid() {
+        return this.grid.map(row => row.map(cell => cell ? JSON.parse(JSON.stringify(cell)) : null));
+    }
+
+    /**
+     * Restore grid state from snapshot
+     */
+    restoreGrid(savedGrid) {
+        if (!savedGrid) return;
+        this.grid = savedGrid.map(row => row.map(cell => cell ? JSON.parse(JSON.stringify(cell)) : null));
+    }
+
+    /**
      * Setup Continental Board for Turn-by-Turn Draft
      * Starts with an empty board (7x7) ready for sequential piece drafting.
      */

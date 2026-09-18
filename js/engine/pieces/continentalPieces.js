@@ -308,8 +308,9 @@
                 if (isInBounds(tr, tc, board)) {
                     const p = board.getPiece(tr, tc);
                     if (p && canCaptureTarget(color, { r, c }, p, { r: tr, c: tc }, board)) {
-                        // Strict retribution check: piece MUST have captured last turn
-                        if (p.capturedLastTurn === true) {
+                        const isTestMode = (typeof window !== 'undefined' && window.CONTINENTAL_TEST_MODE) || (typeof localStorage !== 'undefined' && localStorage.getItem('continental_test_mode') === 'true');
+                        const canRetribute = p.capturedLastTurn === true || (isTestMode && p.usedAbilityLastTurn === true);
+                        if (canRetribute) {
                             moves.push({ r: tr, c: tc, type: 'capture' });
                         }
                     }
@@ -968,22 +969,14 @@
                 }
             });
 
-            // E: Rayo destructor si NO está en cooldown y hay al menos 1 objetivo en línea
+            // E: Rayo destructor si NO está en cooldown (marca casillas ocupadas con objetivo de rayo rojo)
             const isOnCooldown = thisPiece && (thisPiece.justFired === true || thisPiece.cooldownActive === true || thisPiece.usedBeamLastTurn === true || thisPiece.beamCooldown > 0);
             if (!isOnCooldown) {
-                let hasTargets = false;
                 for (let s = 1; s <= 3; s++) {
                     const tr = r + fwd.dr * s;
                     const tc = c + fwd.dc * s;
                     if (!isInBounds(tr, tc, board)) break;
-                    if (!board.isEmpty(tr, tc)) hasTargets = true;
-                }
-                if (hasTargets) {
-                    // Push the 3 squares as clickable targets to trigger the beam
-                    for (let s = 1; s <= 3; s++) {
-                        const tr = r + fwd.dr * s;
-                        const tc = c + fwd.dc * s;
-                        if (!isInBounds(tr, tc, board)) break;
+                    if (!board.isEmpty(tr, tc)) {
                         moves.push({ r: tr, c: tc, type: 'canon-beam-target', isCanonBeamTarget: true });
                     }
                 }

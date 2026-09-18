@@ -56,6 +56,7 @@ class GameController {
         this.drawCount = 0;
         this.reinforcementsBank = { w: 0, b: 0 };
 
+        this.moveHistoryStack = [];
         this.matchOptions = options;
         this.isGameOver = false;
         this.isClockPaused = false;
@@ -535,10 +536,66 @@ class GameController {
     }
 
     // =========================================================================
+    // SANDBOX / UNDO SNAPSHOT ENGINE
+    // =========================================================================
+
+    saveStateSnapshot() {
+        if (!this.boardEngine || !this.rulesEngine) return;
+        const snapshot = {
+            boardGrid: this.boardEngine.cloneGrid(),
+            activeColor: this.rulesEngine.activeColor,
+            fullMoveNumber: this.rulesEngine.fullMoveNumber,
+            halfMoveClock: this.rulesEngine.halfMoveClock,
+            capturedPieces: {
+                w: [...this.rulesEngine.capturedPieces.w.map(p => ({ ...p }))],
+                b: [...this.rulesEngine.capturedPieces.b.map(p => ({ ...p }))]
+            },
+            positionHistory: [...this.rulesEngine.positionHistory],
+            lastMove: this.boardRenderer?.lastMove ? JSON.parse(JSON.stringify(this.boardRenderer.lastMove)) : null,
+            centerStreak: { ...this.centerStreak },
+            reinforcementsBank: { ...this.reinforcementsBank }
+        };
+        if (!this.moveHistoryStack) this.moveHistoryStack = [];
+        this.moveHistoryStack.push(snapshot);
+    }
+
+    undoMove() {
+        if (!this.moveHistoryStack || this.moveHistoryStack.length === 0) return;
+
+        const isAI = (this.matchOptions?.mode === 'ai');
+        let snapshot = this.moveHistoryStack.pop();
+
+        // If playing against AI and turn reverted to AI's turn, pop previous state to give turn back to human player
+        if (isAI && this.moveHistoryStack.length > 0 && snapshot && snapshot.activeColor !== this.matchOptions.playerSide) {
+            snapshot = this.moveHistoryStack.pop();
+        }
+
+        if (!snapshot) return;
+
+        this.boardEngine.restoreGrid(snapshot.boardGrid);
+        this.rulesEngine.activeColor = snapshot.activeColor;
+        this.rulesEngine.fullMoveNumber = snapshot.fullMoveNumber;
+        this.rulesEngine.halfMoveClock = snapshot.halfMoveClock;
+        this.rulesEngine.capturedPieces = snapshot.capturedPieces;
+        this.rulesEngine.positionHistory = snapshot.positionHistory;
+        this.centerStreak = snapshot.centerStreak;
+        this.reinforcementsBank = snapshot.reinforcementsBank;
+        this.boardRenderer.lastMove = snapshot.lastMove;
+
+        this.isGameOver = false;
+        this.selectedSquare = null;
+        this.selectedLegalMoves = [];
+        this.boardRenderer.clearSelection();
+        this.boardRenderer.render();
+        this.renderHUD();
+    }
+
+    // =========================================================================
     // INTERACTION & MOVES
     // =========================================================================
 
     executeUserMove(fromR, fromC, toR, toC, moveTarget = null) {
+        this.saveStateSnapshot();
         const piece = this.boardEngine.getPiece(fromR, fromC);
         if (!piece) return;
 
@@ -1050,6 +1107,8 @@ class GameController {
         const piece = this.boardEngine.getPiece(r, c);
         if (!piece || piece.type !== 'c_canon') return;
 
+        this.saveStateSnapshot();
+
         const beamResult = PieceRegistry.fireCanonBeam(this.boardEngine, r, c);
         if (beamResult.destroyed.length > 0) {
             AudioManager.playCapture();
@@ -1085,6 +1144,24 @@ class GameController {
         this.openRotationPopup(r, c, () => {
             this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
             if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+
+            // Update Cañón cooldowns for incoming active player
+            for (let i = 0; i < this.boardEngine.rows; i++) {
+                for (let j = 0; j < this.boardEngine.cols; j++) {
+                    const p = this.boardEngine.getPiece(i, j);
+                    if (p && p.color === this.rulesEngine.activeColor && p.type === 'c_canon') {
+                        if (p.cooldownActive) {
+                            p.cooldownActive = false;
+                            p.usedBeamLastTurn = false;
+                            p.justFired = false;
+                        } else if (p.usedBeamLastTurn || p.justFired) {
+                            p.justFired = false;
+                            p.cooldownActive = true;
+                        }
+                    }
+                }
+            }
+
             this.finalizeTurn({ success: true, moveRecord: { piece } });
         });
     }
@@ -1165,6 +1242,7 @@ class GameController {
             modal.querySelector('.btn-confirm-pass').addEventListener('click', () => {
                 modal.remove();
                 unpause();
+                this.saveStateSnapshot();
                 this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
                 if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
                 this.finalizeTurn({ success: true, moveRecord: { passed: true } });
@@ -1175,6 +1253,7 @@ class GameController {
                     const selected = myOctoPieces[parseInt(btn.dataset.idx, 10)];
                     modal.remove();
                     unpause();
+                    this.saveStateSnapshot();
                     this.openRotationPopup(selected.r, selected.c, () => {
                         this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
                         if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
@@ -1890,13 +1969,10 @@ class GameController {
             submodeBadge = `👑 Clásico`;
         }
 
-        let canonBeamBtn = '';
-        if (this.selectedSquare) {
-            const selPiece = this.boardEngine.getPiece(this.selectedSquare.r, this.selectedSquare.c);
-            if (selPiece && selPiece.type === 'c_canon' && !selPiece.justFired && !selPiece.usedBeamLastTurn && !selPiece.cooldownActive) {
-                canonBeamBtn = `<button id="btn-game-canon-beam" class="action-btn primary-btn small-btn animate-pulse">💣 Bombardeo Frontal</button>`;
-            }
-        }
+        const isSandbox = (this.matchOptions?.isSandbox || this.matchOptions?.sandboxMode || (typeof localStorage !== 'undefined' && localStorage.getItem('continental_sandbox_mode') === 'true'));
+        const undoBtn = (isSandbox && this.moveHistoryStack && this.moveHistoryStack.length > 0)
+            ? `<button id="btn-game-undo" class="action-btn secondary-btn small-btn" style="background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; color: #a7f3d0; font-weight: bold;">↩️ Deshacer</button>`
+            : '';
 
         const hudHtml = `
             <div class="game-hud glass-panel">
@@ -1936,6 +2012,7 @@ class GameController {
                 </div>
 
                 <div class="game-action-bar">
+                    ${undoBtn}
                     ${this.rulesEngine.isContinental && !this.isGameOver ? `<button id="btn-game-pass-rotate" class="action-btn secondary-btn small-btn">⏭️ Pasar y Rotar</button>` : ''}
                     ${!this.isGameOver ? `<button id="btn-game-resign" class="action-btn secondary-btn small-btn" data-i18n="btnResign">${I18n.get('btnResign')}</button>` : ''}
                     ${!this.isGameOver ? `<button id="btn-game-draw" class="action-btn secondary-btn small-btn" data-i18n="btnOfferDraw">${I18n.get('btnOfferDraw')}</button>` : ''}
@@ -1947,6 +2024,9 @@ class GameController {
         this.hudContainer.innerHTML = hudHtml;
 
         if (!this.isGameOver) {
+            document.getElementById('btn-game-undo')?.addEventListener('click', () => {
+                this.undoMove();
+            });
             document.getElementById('btn-game-pass-rotate')?.addEventListener('click', () => {
                 this.openPassAndRotateModal();
             });
