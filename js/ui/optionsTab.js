@@ -91,20 +91,6 @@ const OptionsTab = {
                         </div>
                     </div>
 
-                    <!-- ROTAR TABLERO TURNO NEGRAS -->
-                    <div class="setting-row">
-                        <div class="setting-label">
-                            <strong>Girar 180° en Turno de Negras</strong>
-                            <span class="setting-sub">Rotación automática del tablero en el turno del jugador negro (flechitas fijas)</span>
-                        </div>
-                        <div class="setting-control">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="opt-auto-rotate-black-toggle" ${currentAutoRotateBlack ? 'checked' : ''}>
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                    </div>
-
                     <!-- PIECE STYLES SELECTOR (WHITE & BLACK INDEPENDENT) -->
                     <div class="setting-row" style="flex-direction: column; align-items: stretch; gap: 10px;">
                         <div class="setting-label">
@@ -414,4 +400,5 @@ const OptionsTab = {
 if (typeof window !== 'undefined') {
     window.CONTINENTAL_TEST_MODE = (localStorage.getItem('continental_test_mode') === 'true');
 }
+
 

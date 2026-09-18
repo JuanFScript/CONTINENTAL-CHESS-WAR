@@ -44,8 +44,8 @@ class BoardRenderer {
 
         for (let rIdx = 0; rIdx < this.board.rows; rIdx++) {
             for (let cIdx = 0; cIdx < this.board.cols; cIdx++) {
-                const r = this.flipped ? (this.board.rows - 1 - rIdx) : rIdx;
-                const c = this.flipped ? (this.board.cols - 1 - cIdx) : cIdx;
+                const r = rIdx;
+                const c = cIdx;
 
                 const isLight = (r + c) % 2 === 0;
                 const square = document.createElement('div');

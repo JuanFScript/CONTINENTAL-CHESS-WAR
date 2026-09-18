@@ -766,13 +766,10 @@ class GameController {
         const piece = this.boardEngine.getPiece(r, c);
         if (!piece) { if (callback) callback(); return; }
 
-        const isAI = (this.matchOptions?.mode === 'ai' && this.rulesEngine.activeColor !== this.matchOptions.playerSide);
+        const isAI = (this.matchOptions?.mode === 'ai' && piece.color !== this.matchOptions.playerSide);
         if (isAI) {
             if (piece.type === 'c_mago') {
                 piece.stance = (Math.random() > 0.5) ? 'soldier' : 'mercenary';
-            }
-            if (typeof AIEngine !== 'undefined' && AIEngine.getBestRotationForPiece) {
-                piece.facing = AIEngine.getBestRotationForPiece(this.boardEngine, r, c, piece);
             }
             if (callback) callback();
             return;
@@ -1588,12 +1585,8 @@ class GameController {
         if (this.matchOptions?.alwaysWhiteTurn) {
             this.rulesEngine.activeColor = 'w';
         }
-        
-        const autoRotateBlack = localStorage.getItem('continental_auto_rotate_black') !== 'false';
-        if (autoRotateBlack && this.matchOptions?.mode !== 'ai') {
-            this.boardRenderer.flipped = (this.rulesEngine.activeColor === 'b');
-        }
 
+        this.boardRenderer.flipped = false; // Ensure it's never flipped
         this.boardRenderer.render();
         this.updateMatchState(result, () => {
             if (this.isGameOver) return;
@@ -1698,12 +1691,6 @@ class GameController {
 
         const bestMove = AIEngine.getBestMove(this.rulesEngine, this.matchOptions.difficulty);
         if (bestMove) {
-            if (bestMove.isCanonBeam && bestMove.from) {
-                this.selectedSquare = bestMove.from;
-                this.fireSelectedCanonBeam();
-                return;
-            }
-
             const { from, to } = bestMove;
             const result = this.rulesEngine.executeMove(from.r, from.c, to.r, to.c, 'q');
             if (result && result.success) {

@@ -48,13 +48,7 @@ class AIEngine {
         const color = rulesEngine.activeColor;
         const board = rulesEngine.board;
 
-        // 1. Tactical Cannon Check: Can any AI Cannon shoot and gain net score?
-        const cannonShot = this.checkCannonFiringOpportunity(rulesEngine, color);
-        if (cannonShot) {
-            return { isCanonBeam: true, from: cannonShot };
-        }
-
-        // 2. Standard & Ability Moves
+        // Standard & Ability Moves
         const allMoves = rulesEngine.getAllLegalMoves(color);
         if (allMoves.length === 0) return null;
 
@@ -70,139 +64,12 @@ class AIEngine {
     /**
      * Tactical evaluation to check if an AI cannon should fire its beam
      */
-    static checkCannonFiringOpportunity(rulesEngine, aiColor) {
-        const board = rulesEngine.board;
-        if (typeof PieceRegistry === 'undefined' || !PieceRegistry.fireCanonBeam) return null;
-
-        for (let r = 0; r < board.rows; r++) {
-            for (let c = 0; c < board.cols; c++) {
-                const piece = board.getPiece(r, c);
-                if (piece && piece.color === aiColor && piece.type === 'c_canon') {
-                    if (!piece.justFired && !piece.cooldownActive && !piece.usedBeamLastTurn) {
-                        const beamResult = PieceRegistry.fireCanonBeam(board, r, c);
-                        if (beamResult.destroyed && beamResult.destroyed.length > 0) {
-                            let enemyVal = 0;
-                            let friendlyVal = 0;
-
-                            beamResult.destroyed.forEach(d => {
-                                const val = this.PIECE_VALUES[d.piece.type] || 10;
-                                if (d.piece.color === aiColor) friendlyVal += val;
-                                else enemyVal += val;
-                            });
-
-                            // Fire if net point gain > 0 or enemy destroyed with 0 friendly losses
-                            if (enemyVal > friendlyVal && enemyVal >= 10) {
-                                return { r, c };
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return null;
-    }
+    
 
     /**
      * Calculate optimal rotation angle for an octogonal piece
      */
-    static getBestRotationForPiece(boardEngine, r, c, piece) {
-        if (!piece) return 0;
-        const color = piece.color;
-        const facings = [0, 45, 90, 135, 180, 225, 270, 315];
-
-        // 1. Cañón: Aim facing direction at maximum enemy material with 0 friendly fire
-        if (piece.type === 'c_canon' && typeof PieceRegistry !== 'undefined' && PieceRegistry.fireCanonBeam) {
-            const originalFacing = piece.facing;
-            let bestFacing = originalFacing;
-            let maxGain = -Infinity;
-
-            facings.forEach(f => {
-                piece.facing = f;
-                const beamResult = PieceRegistry.fireCanonBeam(boardEngine, r, c);
-                let enemyVal = 0;
-                let friendlyVal = 0;
-
-                if (beamResult.destroyed) {
-                    beamResult.destroyed.forEach(d => {
-                        const val = this.PIECE_VALUES[d.piece.type] || 10;
-                        if (d.piece.color === color) friendlyVal += val;
-                        else enemyVal += val;
-                    });
-                }
-                const gain = enemyVal - (friendlyVal * 2);
-                if (gain > maxGain && enemyVal > 0) {
-                    maxGain = gain;
-                    bestFacing = f;
-                }
-            });
-
-            piece.facing = originalFacing;
-            if (maxGain > 0) return bestFacing;
-        }
-
-        // 2. Dragón / Arquero: Aim towards enemy King or center of enemy mass
-        if (piece.type === 'c_dragon' || piece.type === 'c_arquero' || piece.type === 'c_canon') {
-            let enemyKingPos = null;
-            let totalR = 0, totalC = 0, enemyCount = 0;
-
-            for (let i = 0; i < boardEngine.rows; i++) {
-                for (let j = 0; j < boardEngine.cols; j++) {
-                    const p = boardEngine.getPiece(i, j);
-                    if (p && p.color !== color) {
-                        if (p.type === 'k' || p.type === 'c_rey') {
-                            enemyKingPos = { r: i, c: j };
-                        }
-                        totalR += i;
-                        totalC += j;
-                        enemyCount++;
-                    }
-                }
-            }
-
-            const target = enemyKingPos || (enemyCount > 0 ? { r: Math.round(totalR / enemyCount), c: Math.round(totalC / enemyCount) } : { r: 3, c: 3 });
-            return this.calculateFacingAngle(r, c, target.r, target.c);
-        }
-
-        // 3. Defensor: Aim shield towards enemy concentration
-        if (piece.type === 'c_defensor') {
-            let totalR = 0, totalC = 0, enemyCount = 0;
-            for (let i = 0; i < boardEngine.rows; i++) {
-                for (let j = 0; j < boardEngine.cols; j++) {
-                    const p = boardEngine.getPiece(i, j);
-                    if (p && p.color !== color) {
-                        totalR += i;
-                        totalC += j;
-                        enemyCount++;
-                    }
-                }
-            }
-            if (enemyCount > 0) {
-                const avgR = Math.round(totalR / enemyCount);
-                const avgC = Math.round(totalC / enemyCount);
-                return this.calculateFacingAngle(r, c, avgR, avgC);
-            }
-        }
-
-        // Default: Face forward into enemy territory
-        return color === 'w' ? 0 : 180;
-    }
-
-    /**
-     * Compute 8-way facing angle from (r1, c1) towards (r2, c2)
-     */
-    static calculateFacingAngle(r1, c1, r2, c2) {
-        const dr = r2 - r1; // negative = upwards on board (towards r=0)
-        const dc = c2 - c1; // positive = rightwards (towards max c)
-
-        if (dr === 0 && dc === 0) return 0;
-
-        // Angle in radians (0 = North/Upwards on board = r decrements)
-        const angleRad = Math.atan2(dc, -dr);
-        let angleDeg = Math.round((angleRad * 180 / Math.PI) / 45) * 45;
-        if (angleDeg < 0) angleDeg += 360;
-
-        return angleDeg % 360;
-    }
+    
 
     /**
      * Novice: Selects captures randomly or random legal move
@@ -301,3 +168,5 @@ class AIEngine {
         return totalScore;
     }
 }
+
+
