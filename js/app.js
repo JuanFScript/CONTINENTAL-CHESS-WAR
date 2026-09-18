@@ -3,9 +3,13 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Initialize Theme
-    const savedTheme = localStorage.getItem('continental_theme') || 'war';
-    document.body.className = `theme-${savedTheme}`;
+    // 1. Initialize Theme & GraphicsEngine
+    if (typeof GraphicsEngine !== 'undefined') {
+        GraphicsEngine.init();
+    } else {
+        const savedTheme = localStorage.getItem('continental_theme') || 'war';
+        document.body.className = `theme-${savedTheme}`;
+    }
 
     // 2. Initial Language Selection Modal check
     const hasChosenLang = localStorage.getItem('continental_lang');

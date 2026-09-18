@@ -127,46 +127,12 @@ const ArmoryTab = {
 
         const lang = I18n.currentLang;
         const pieces = this.getFilteredPieces();
-        const svgMap = {
-            'p': 'peon_blanco', 'n': 'caballo_blanco', 'b': 'alfil_blanco', 'r': 'torre_blanca', 'q': 'reina_blanca', 'k': 'rey_blanco',
-            'c_peon': 'peon_blanco', 'c_torre': 'torre_blanca', 'c_alfil': 'alfil_blanco', 'c_caballo': 'caballo_blanco',
-            'c_rey': 'rey_blanco', 'c_reina': 'reina_blanca',
-            'c_dama': 'dama_blanca', 'c_lobo': 'lobo_blanco', 'c_escudero': 'escudero_blanco',
-            'c_guardia': 'guardia_blanco', 'c_soldado': 'soldado_blanco', 'c_mercenario': 'mercenario_blanco',
-            'c_elefante': 'elefante_blanco', 'c_piquetero': 'piquetero_blanco', 'c_arquero': 'arquero_blanco',
-            'c_defensor': 'defensor_blanco', 'c_canon': 'canon_blanco', 'c_dragon': 'dragon_blanco',
-            'c_gigante': 'gigante_blanco', 'c_mago': 'mago_blanco'
-        };
-
-        const style = localStorage.getItem('continental_piece_style') || 'default';
-        const initialExt = style === 'default' ? 'svg' : 'png';
-
-        if (pieces.length === 0) {
-            container.innerHTML = '<span class="text-muted">No hay piezas en esta categoría.</span>';
-            return;
-        }
-
-        if (!pieces.some(p => p.type === this.selectedPieceType)) {
-            this.selectedPieceType = pieces[0].type;
-        }
-
         container.innerHTML = pieces.map(p => {
-            const svg = svgMap[p.type];
-            const iconHtml = svg 
-                ? `<img src="Imagenes de las piezas/${svg}_${style}.${initialExt}?v=81" class="chip-img-icon" alt="${p.type}" onerror="
-                    const step = parseInt(this.dataset.fbStep || '0', 10) + 1;
-                    this.dataset.fbStep = step.toString();
-                    if (step === 1) this.src = 'imagenes-de-las-piezas/${svg}_${style}.${initialExt}?v=81';
-                    else if (step === 2 && '${style}' !== 'default') this.src = 'Imagenes de las piezas/${svg}_${style}.webp?v=81';
-                    else if (step === 3 && '${style}' !== 'default') this.src = 'imagenes-de-las-piezas/${svg}_${style}.webp?v=81';
-                    else if (step === 4 && '${style}' !== 'default') this.src = 'Imagenes de las piezas/${svg}_${style}.svg?v=81';
-                    else if (step === 5 && '${style}' !== 'default') this.src = 'imagenes-de-las-piezas/${svg}_${style}.svg?v=81';
-                    else if (step === 6) this.src = 'Imagenes de las piezas/${svg}_default.svg?v=81';
-                    else if (step === 7) this.src = 'imagenes-de-las-piezas/${svg}_default.svg?v=81';
-                    else if (step === 8) this.src = 'Imagenes de las piezas/${svg}.svg?v=81';
-                    else if (step === 9) this.src = 'imagenes-de-las-piezas/${svg}.svg?v=81';
-                ">`
-                : `<span class="chip-symbol">${p.symbol}</span>`;
+            const tex = (typeof GraphicsEngine !== 'undefined')
+                ? GraphicsEngine.getPieceTexture(p.type, 'w')
+                : { src: `Imagenes de las piezas/${p.type}_default.svg?v=82`, fallbackSrc: '', symbolFallback: p.symbol };
+
+            const iconHtml = `<img src="${tex.src}" class="chip-img-icon" alt="${p.type}" onerror="if (!this.dataset.failed) { this.dataset.failed = 'true'; this.src = '${tex.fallbackSrc}'; } else { this.style.display = 'none'; }">`;
             const octoHtml = p.octogonal ? `<span class="chip-tag-octo">Octo</span>` : '';
 
             return `
@@ -201,6 +167,7 @@ const ArmoryTab = {
 
         const dummyHud = document.createElement('div');
         this.sandboxController = new GameController(boardEl, dummyHud);
+        this.sandboxController.renderHUD = () => {}; // Neutralize HUD updates in Armory sandbox
         
         this.sandboxController.matchOptions = { 
             mode: 'local', 
@@ -317,17 +284,9 @@ const ArmoryTab = {
         const p = PieceRegistry.get(this.selectedPieceType);
         if (!p) return;
 
-        const svgMap = {
-            'p': 'wP', 'n': 'wN', 'b': 'wB', 'r': 'wR', 'q': 'wQ', 'k': 'wK',
-            'c_peon': 'wP', 'c_torre': 'wR', 'c_alfil': 'wB', 'c_caballo': 'wN',
-            'c_rey': 'wK', 'c_reina': 'wQ',
-            'c_dama': 'dama_blanca', 'c_lobo': 'lobo_blanco', 'c_escudero': 'escudero_blanco',
-            'c_guardia': 'guardia_blanco', 'c_soldado': 'soldado_blanco', 'c_mercenario': 'mercenario_blanco',
-            'c_elefante': 'elefante_blanco', 'c_piquetero': 'piquetero_blanco', 'c_arquero': 'arquero_blanco',
-            'c_defensor': 'defensor_blanco', 'c_canon': 'canon_blanco', 'c_dragon': 'dragon_blanco',
-            'c_gigante': 'gigante_blanco', 'c_mago': 'mago_blanco'
-        };
-        const svg = svgMap[p.type];
+        const tex = (typeof GraphicsEngine !== 'undefined')
+            ? GraphicsEngine.getPieceTexture(p.type, 'w')
+            : { src: `Imagenes de las piezas/${p.type}_default.svg?v=82`, fallbackSrc: '', symbolFallback: p.symbol };
 
         const tierLabels = {
             'standard': 'Ajedrez Estándar',
@@ -348,22 +307,12 @@ const ArmoryTab = {
             `;
         }
 
+        const heroImgHtml = `<img src="${tex.src}" class="hero-piece-img" alt="${p.name.es}" onerror="if (!this.dataset.failed) { this.dataset.failed = 'true'; this.src = '${tex.fallbackSrc}'; } else { this.style.display = 'none'; }">`;
+
         card.innerHTML = `
             <div class="card-hero">
                 <div class="hero-icon-container">
-                    ${svg ? `<img src="Imagenes de las piezas/${svg}_${style}.${initialExt}?v=81" class="hero-piece-img" alt="${p.name.es}" onerror="
-                        const step = parseInt(this.dataset.fbStep || '0', 10) + 1;
-                        this.dataset.fbStep = step.toString();
-                        if (step === 1) this.src = 'imagenes-de-las-piezas/${svg}_${style}.${initialExt}?v=81';
-                        else if (step === 2 && '${style}' !== 'default') this.src = 'Imagenes de las piezas/${svg}_${style}.webp?v=81';
-                        else if (step === 3 && '${style}' !== 'default') this.src = 'imagenes-de-las-piezas/${svg}_${style}.webp?v=81';
-                        else if (step === 4 && '${style}' !== 'default') this.src = 'Imagenes de las piezas/${svg}_${style}.svg?v=81';
-                        else if (step === 5 && '${style}' !== 'default') this.src = 'imagenes-de-las-piezas/${svg}_${style}.svg?v=81';
-                        else if (step === 6) this.src = 'Imagenes de las piezas/${svg}_default.svg?v=81';
-                        else if (step === 7) this.src = 'imagenes-de-las-piezas/${svg}_default.svg?v=81';
-                        else if (step === 8) this.src = 'Imagenes de las piezas/${svg}.svg?v=81';
-                        else if (step === 9) this.src = 'imagenes-de-las-piezas/${svg}.svg?v=81';
-                    ">` : `<span class="hero-piece-symbol">${p.symbol}</span>`}
+                    ${heroImgHtml}
                 </div>
                 <div class="hero-text">
                     <h2>${p.name[lang] || p.name.es}</h2>

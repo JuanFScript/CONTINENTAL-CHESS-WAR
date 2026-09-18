@@ -766,6 +766,18 @@ class GameController {
         const piece = this.boardEngine.getPiece(r, c);
         if (!piece) { if (callback) callback(); return; }
 
+        const isAI = (this.matchOptions?.mode === 'ai' && this.rulesEngine.activeColor !== this.matchOptions.playerSide);
+        if (isAI) {
+            if (piece.type === 'c_mago') {
+                piece.stance = (Math.random() > 0.5) ? 'soldier' : 'mercenary';
+            }
+            if (typeof AIEngine !== 'undefined' && AIEngine.getBestRotationForPiece) {
+                piece.facing = AIEngine.getBestRotationForPiece(this.boardEngine, r, c, piece);
+            }
+            if (callback) callback();
+            return;
+        }
+
         const unpause = this.pauseClockTemporarily(5);
 
         if (piece.type === 'c_mago') {
@@ -1576,6 +1588,12 @@ class GameController {
         if (this.matchOptions?.alwaysWhiteTurn) {
             this.rulesEngine.activeColor = 'w';
         }
+        
+        const autoRotateBlack = localStorage.getItem('continental_auto_rotate_black') !== 'false';
+        if (autoRotateBlack && this.matchOptions?.mode !== 'ai') {
+            this.boardRenderer.flipped = (this.rulesEngine.activeColor === 'b');
+        }
+
         this.boardRenderer.render();
         this.updateMatchState(result, () => {
             if (this.isGameOver) return;
@@ -1680,6 +1698,12 @@ class GameController {
 
         const bestMove = AIEngine.getBestMove(this.rulesEngine, this.matchOptions.difficulty);
         if (bestMove) {
+            if (bestMove.isCanonBeam && bestMove.from) {
+                this.selectedSquare = bestMove.from;
+                this.fireSelectedCanonBeam();
+                return;
+            }
+
             const { from, to } = bestMove;
             const result = this.rulesEngine.executeMove(from.r, from.c, to.r, to.c, 'q');
             if (result && result.success) {
@@ -1866,7 +1890,9 @@ class GameController {
             const tag = isConsecutive ? 'Seg' : 'Acum';
             submodeBadge = `🎯 Centro (${tag}): ⚪${this.centerStreak?.w || 0}/${targetTurns} | ⚫${this.centerStreak?.b || 0}/${targetTurns}`;
         } else if (this.matchOptions?.submode === 'continental_gran_ejercito') {
-            submodeBadge = `🛡️ Gran Ejército`;
+            const wPts = this.rulesEngine.getArmyPoints('w');
+            const bPts = this.rulesEngine.getArmyPoints('b');
+            submodeBadge = `🛡️ Gran Ejército: ⚪${wPts} pts | ⚫${bPts} pts (Meta: ≥6 vs ≤5)`;
         } else if (this.rulesEngine.isContinental) {
             const wPts = this.rulesEngine.getArmyPoints('w');
             const bPts = this.rulesEngine.getArmyPoints('b');
@@ -2120,17 +2146,41 @@ class GameController {
         this.renderHUD();
         AudioManager.playVictory();
 
+        const msgLower = resultMessage.toLowerCase();
+        let isWhiteWinner = msgLower.includes('blanca') || msgLower.includes('blanco') || msgLower.includes('white');
+        let isBlackWinner = msgLower.includes('negra') || msgLower.includes('negro') || msgLower.includes('black');
+        
+        let bgColor = 'rgba(15, 23, 42, 0.95)'; // Default dark
+        let borderColor = 'rgba(255, 255, 255, 0.1)';
+        let titleColor = '#ffffff';
+        let bannerHtml = '';
+
+        if (isWhiteWinner) {
+            bgColor = 'linear-gradient(135deg, #f8fafc, #cbd5e1)';
+            borderColor = '#fbbf24'; // Gold
+            titleColor = '#0f172a';
+            bannerHtml = `<div style="background: #fbbf24; color: #78350f; font-weight: 900; font-size: 1.2rem; padding: 10px; text-transform: uppercase; letter-spacing: 2px; border-radius: 8px 8px 0 0; margin: -25px -25px 20px -25px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">♔ ¡GANAN LAS BLANCAS! ♔</div>`;
+        } else if (isBlackWinner) {
+            bgColor = 'linear-gradient(135deg, #1e293b, #020617)';
+            borderColor = '#ef4444'; // Red
+            titleColor = '#ffffff';
+            bannerHtml = `<div style="background: #ef4444; color: #450a0a; font-weight: 900; font-size: 1.2rem; padding: 10px; text-transform: uppercase; letter-spacing: 2px; border-radius: 8px 8px 0 0; margin: -25px -25px 20px -25px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">♚ ¡GANAN LAS NEGRAS! ♚</div>`;
+        } else {
+            bannerHtml = `<div style="background: #64748b; color: #f8fafc; font-weight: 900; font-size: 1.2rem; padding: 10px; text-transform: uppercase; letter-spacing: 2px; border-radius: 8px 8px 0 0; margin: -25px -25px 20px -25px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">⚖️ EMPATE ⚖️</div>`;
+        }
+
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay modal-active';
         overlay.id = 'game-over-modal';
         overlay.innerHTML = `
-            <div class="modal-card glass-panel text-center animate-bounce">
-                <div class="trophy-icon">🏆</div>
-                <h2>${resultMessage}</h2>
-                <div class="modal-actions" style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 15px;">
-                    <button id="btn-end-rematch" class="action-btn primary-btn" style="flex: 1; min-width: 110px;" data-i18n="btnRematch">${I18n.get('btnRematch')}</button>
-                    <button id="btn-end-view-board" class="action-btn secondary-btn" style="flex: 1; min-width: 110px; background: rgba(255,255,255,0.15);" data-i18n="btnViewBoard">${I18n.get('btnViewBoard')}</button>
-                    <button id="btn-end-menu" class="action-btn secondary-btn" style="flex: 1; min-width: 110px;" data-i18n="btnMenu">${I18n.get('btnMenu')}</button>
+            <div class="modal-card animate-bounce" style="background: ${bgColor}; border: 4px solid ${borderColor}; padding: 25px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                ${bannerHtml}
+                <div class="trophy-icon" style="font-size: 4rem; margin-bottom: 10px; drop-shadow: 0 4px 6px rgba(0,0,0,0.4);">🏆</div>
+                <h2 style="color: ${titleColor}; font-size: 1.3rem; margin-bottom: 20px; line-height: 1.4; font-weight: bold; text-shadow: ${isWhiteWinner ? 'none' : '0 2px 4px rgba(0,0,0,0.5)'};">${resultMessage}</h2>
+                <div class="modal-actions" style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+                    <button id="btn-end-rematch" class="action-btn primary-btn" style="flex: 1; min-width: 110px; background: ${isWhiteWinner ? '#2563eb' : '#3b82f6'}; color: white; border: none;" data-i18n="btnRematch">${I18n.get('btnRematch')}</button>
+                    <button id="btn-end-view-board" class="action-btn secondary-btn" style="flex: 1; min-width: 110px; background: rgba(0,0,0,0.2); color: ${titleColor}; border: 1px solid ${borderColor};" data-i18n="btnViewBoard">${I18n.get('btnViewBoard')}</button>
+                    <button id="btn-end-menu" class="action-btn secondary-btn" style="flex: 1; min-width: 110px; background: rgba(0,0,0,0.2); color: ${titleColor}; border: 1px solid ${borderColor};" data-i18n="btnMenu">${I18n.get('btnMenu')}</button>
                 </div>
             </div>
         `;

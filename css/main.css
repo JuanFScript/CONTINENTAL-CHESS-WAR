@@ -25,6 +25,32 @@
 }
 
 /* Theme Options */
+body.theme-war {
+    --bg-gradient: linear-gradient(135deg, #091c15 0%, #0d2a20 50%, #05120d 100%);
+    --panel-bg: rgba(16, 42, 32, 0.85);
+    --panel-border: rgba(52, 211, 153, 0.3);
+    --accent-primary: #10b981;
+    --accent-hover: #059669;
+    --accent-glow: rgba(16, 185, 129, 0.4);
+    --text-primary: #f0fdf4;
+    --text-secondary: #a7f3d0;
+    --sq-light: #eeedd5;
+    --sq-dark: #769656;
+}
+
+body.theme-crystal {
+    --bg-gradient: linear-gradient(135deg, #2e1065 0%, #3b0764 50%, #170326 100%);
+    --panel-bg: rgba(59, 7, 100, 0.88);
+    --panel-border: rgba(216, 180, 254, 0.4);
+    --accent-primary: #c084fc;
+    --accent-hover: #a855f7;
+    --accent-glow: rgba(192, 132, 252, 0.5);
+    --text-primary: #faf5ff;
+    --text-secondary: #e9d5ff;
+    --sq-light: #f3e8ff;
+    --sq-dark: #7e22ce;
+}
+
 body.theme-classic {
     --bg-gradient: linear-gradient(135deg, #2c1810 0%, #3d2317 50%, #1a0d08 100%);
     --panel-bg: rgba(61, 35, 23, 0.85);

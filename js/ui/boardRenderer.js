@@ -132,92 +132,38 @@ class BoardRenderer {
                     const pieceEl = document.createElement('div');
                     pieceEl.className = `chess-piece piece-${piece.color}`;
                     
-                    const code = `${piece.color}${piece.type.toUpperCase()}`; // wK, wQ, wR...
-                    const spanishMap = {
-                        'wK': 'rey_blanco', 'bK': 'rey_negro',
-                        'wQ': 'reina_blanca', 'bQ': 'reina_negra',
-                        'wR': 'torre_blanca', 'bR': 'torre_negra',
-                        'wB': 'alfil_blanco', 'bB': 'alfil_negro',
-                        'wN': 'caballo_blanco', 'bN': 'caballo_negro',
-                        'wP': 'peon_blanco', 'bP': 'peon_negro',
-                        'wC_PEON': 'peon_blanco', 'bC_PEON': 'peon_negro',
-                        'wC_TORRE': 'torre_blanca', 'bC_TORRE': 'torre_negra',
-                        'wC_ALFIL': 'alfil_blanco', 'bC_ALFIL': 'alfil_negro',
-                        'wC_CABALLO': 'caballo_blanco', 'bC_CABALLO': 'caballo_negro',
-                        'wC_REY': 'rey_blanco', 'bC_REY': 'rey_negro',
-                        'wC_REINA': 'reina_blanca', 'bC_REINA': 'reina_negra',
+                    const tex = (typeof GraphicsEngine !== 'undefined')
+                        ? GraphicsEngine.getPieceTexture(piece.type, piece.color)
+                        : { src: `Imagenes de las piezas/${piece.color}${piece.type.toUpperCase()}_default.svg?v=82`, fallbackSrc: '', symbolFallback: piece.type };
 
-                        // Continental Exclusive Pieces
-                        'wC_DAMA': 'dama_blanca', 'bC_DAMA': 'dama_negra',
-                        'wC_LOBO': 'lobo_blanco', 'bC_LOBO': 'lobo_negro',
-                        'wC_ESCUDERO': 'escudero_blanco', 'bC_ESCUDERO': 'escudero_negro',
-                        'wC_GUARDIA': 'guardia_blanco', 'bC_GUARDIA': 'guardia_negro',
-                        'wC_SOLDADO': 'soldado_blanco', 'bC_SOLDADO': 'soldado_negro',
-                        'wC_MERCENARIO': 'mercenario_blanco', 'bC_MERCENARIO': 'mercenario_negro',
-                        'wC_ELEFANTE': 'elefante_blanco', 'bC_ELEFANTE': 'elefante_negro',
-                        'wC_PIQUETERO': 'piquetero_blanco', 'bC_PIQUETERO': 'piquetero_negro',
-                        'wC_ARQUERO': 'arquero_blanco', 'bC_ARQUERO': 'arquero_negro',
-                        'wC_DEFENSOR': 'defensor_blanco', 'bC_DEFENSOR': 'defensor_negro',
-                        'wC_CANON': 'canon_blanco', 'bC_CANON': 'canon_negro',
-                        'wC_DRAGON': 'dragon_blanco', 'bC_DRAGON': 'dragon_negro',
-                        'wC_GIGANTE': 'gigante_blanco', 'bC_GIGANTE': 'gigante_negro',
-                        'wC_MAGO': 'mago_blanco', 'bC_MAGO': 'mago_negro'
-                    };
-                    const esName = spanishMap[code] || code;
-                    const style = localStorage.getItem('continental_piece_style') || 'default';
-                    const reg = typeof PieceRegistry !== 'undefined' ? PieceRegistry.get(piece.type) : null;
+                    const imgEl = document.createElement('img');
+                    imgEl.className = 'piece-img';
+                    imgEl.alt = `${piece.color} ${piece.type}`;
+                    imgEl.src = tex.src;
 
-                    if (!spanishMap[code] && reg && reg.symbol) {
-                        const symEl = document.createElement('span');
-                        symEl.className = 'piece-custom-symbol';
-                        symEl.textContent = reg.symbol;
-                        pieceEl.appendChild(symEl);
-                    } else {
-                        const imgEl = document.createElement('img');
-                        imgEl.className = 'piece-img';
-                        imgEl.alt = `${piece.color} ${piece.type}`;
-                        
-                        const initialExt = style === 'default' ? 'svg' : 'png';
-                        imgEl.src = `Imagenes de las piezas/${esName}_${style}.${initialExt}?v=81`;
-
-                        imgEl.onerror = function() {
-                            const step = parseInt(this.dataset.fbStep || '0', 10) + 1;
-                            this.dataset.fbStep = step.toString();
-
-                            if (step === 1) {
-                                this.src = `imagenes-de-las-piezas/${esName}_${style}.${initialExt}?v=81`;
-                            } else if (step === 2 && style !== 'default') {
-                                this.src = `Imagenes de las piezas/${esName}_${style}.webp?v=81`;
-                            } else if (step === 3 && style !== 'default') {
-                                this.src = `imagenes-de-las-piezas/${esName}_${style}.webp?v=81`;
-                            } else if (step === 4 && style !== 'default') {
-                                this.src = `Imagenes de las piezas/${esName}_${style}.svg?v=81`;
-                            } else if (step === 5 && style !== 'default') {
-                                this.src = `imagenes-de-las-piezas/${esName}_${style}.svg?v=81`;
-                            } else if (step === 6) {
-                                this.src = `Imagenes de las piezas/${esName}_default.svg?v=81`;
-                            } else if (step === 7) {
-                                this.src = `imagenes-de-las-piezas/${esName}_default.svg?v=81`;
-                            } else if (step === 8) {
-                                this.src = `Imagenes de las piezas/${esName}.svg?v=81`;
-                            } else if (step === 9) {
-                                this.src = `imagenes-de-las-piezas/${esName}.svg?v=81`;
-                            } else {
-                                this.style.display = 'none';
-                                if (!this.parentElement.querySelector('.piece-custom-symbol')) {
-                                    const fallbackSym = reg ? reg.symbol : piece.type;
-                                    const symSpan = document.createElement('span');
-                                    symSpan.className = 'piece-custom-symbol';
-                                    symSpan.textContent = fallbackSym;
-                                    pieceEl.appendChild(symSpan);
-                                }
+                    imgEl.onerror = function() {
+                        if (this.dataset.failedOnce) {
+                            this.style.display = 'none';
+                            if (!this.parentElement.querySelector('.piece-custom-symbol')) {
+                                const symSpan = document.createElement('span');
+                                symSpan.className = 'piece-custom-symbol';
+                                symSpan.textContent = tex.symbolFallback || '♟';
+                                pieceEl.appendChild(symSpan);
                             }
-                        };
+                        } else {
+                            this.dataset.failedOnce = 'true';
+                            this.src = tex.fallbackSrc;
+                        }
+                    };
 
-                        pieceEl.appendChild(imgEl);
-                    }
+                    pieceEl.appendChild(imgEl);
                     square.appendChild(pieceEl);
-                    this.renderOctoArrows(piece, square);
+
+                    if (typeof GraphicsEngine !== 'undefined') {
+                        GraphicsEngine.renderArrowSvg(piece, square, this.flipped);
+                    } else {
+                        this.renderOctoArrows(piece, square);
+                    }
                 }
 
                 // Click / Tap listener
@@ -244,6 +190,10 @@ class BoardRenderer {
     }
 
     renderOctoArrows(piece, squareEl) {
+        if (typeof GraphicsEngine !== 'undefined') {
+            GraphicsEngine.renderArrowSvg(piece, squareEl, this.flipped);
+            return;
+        }
         if (!piece || typeof PieceRegistry === 'undefined') return;
         const reg = PieceRegistry.get(piece.type);
         if (!reg) return;
@@ -282,7 +232,7 @@ class BoardRenderer {
             typePattern = 'mago';
         }
 
-        const renderFacing = this.flipped ? (facing + 180) % 360 : facing;
+        const renderFacing = facing;
 
         // SVG overlay for arrows inside square
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

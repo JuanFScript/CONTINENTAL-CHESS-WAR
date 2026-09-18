@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="45" height="45">
+    <path d="M 11,37 L 34,37 L 34,40.5 L 11,40.5 Z" fill="#f0fdf4" stroke="#15803d" stroke-width="1.5"/>
+        <path d="M 13,34 L 32,34 L 32,37 L 13,37 Z" fill="#f0fdf4" stroke="#15803d" stroke-width="1.5"/>
+        <path d="M 15,34 C 15,25 17,20 22.5,20 C 28,20 30,25 30,34 Z" fill="#f0fdf4" stroke="#15803d" stroke-width="1.8"/>
+        <circle cx="22.5" cy="14" r="4.5" fill="#f0fdf4" stroke="#15803d" stroke-width="1.8"/>
+        <path d="M 28,10 C 34,14 36,24 30,34" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M 28,10 L 30,34" stroke="#15803d" stroke-width="1.2"/>
+        <path d="M 16,22 L 34,22" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 32,19 L 37,22 L 32,25 Z" fill="#22c55e" stroke="#15803d" stroke-width="1"/>
+    
+    <polygon points="22.5,2 25,4 25,7 22.5,9 20,7 20,4" fill="none" stroke="#22c55e" stroke-width="1"/>
+</svg>
