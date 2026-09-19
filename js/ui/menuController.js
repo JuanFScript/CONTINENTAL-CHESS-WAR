@@ -54,41 +54,29 @@ const MenuController = {
                 <button class="btn-close-changelog" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.1em; display: flex; align-items: center; justify-content: center; z-index: 10; transition: background 0.2s;">✖</button>
                 <h2 style="color: #ffd700; margin-top: 0; margin-bottom: 20px; font-size: 1.5em; text-align: center; position: sticky; top: -25px; background: rgba(13,42,32,0.95); padding: 15px 0 10px 0; z-index: 5;">📜 Historial de Actualizaciones</h2>
                 
-                <h3 style="color: #4ade80; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 84 (Actual)</h3>
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 85</h3>
                 <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
-                    <li style="margin-bottom: 8px;"><strong>Modo Amistoso / Sandbox:</strong> Nueva opción en el menú que añade un botón para deshacer movimientos ilimitadamente. Ideal para aprender a jugar.</li>
-                    <li style="margin-bottom: 8px;"><strong>Lógica del Cañón:</strong> Se arregló el disparo del cañón y su movimiento, apuntando automáticamente a objetivos ocupados y permitiendo su avance.</li>
-                    <li style="margin-bottom: 8px;"><strong>Retribución del Escudero:</strong> Se ajustó para que ya no contraataque ataques a distancia (Magos, Arqueros, Cañones, Gigantes) por todo el mapa.</li>
-                    <li style="margin-bottom: 8px;"><strong>Inteligencia Artificial:</strong> Revertida la rotación y control erróneo de piezas. La IA ahora juega de forma más sólida sin desordenar el tablero.</li>
+                    <li style="margin-bottom: 8px;"><strong>Modo LAN Funcional:</strong> Se implementó un lobby completo para red local. Permite unirse con nombre personalizado, crear salas con nombres generados, ver jugadores en espera, y gestionar solicitudes de entrada mediante cupos.</li>
+                    <li style="margin-bottom: 8px;"><strong>Unión por Código o Solicitud:</strong> Ingresa por código directo o presiona "Pedir unirse" para que el anfitrión de la sala te acepte antes de iniciar la partida.</li>
+                    <li style="margin-bottom: 8px;"><strong>Corrección de Refuerzos en Gran Ejército:</strong> Solucionado el bug que bloqueaba el tablero al jugar con Negras contra el bot al momento de colocar tropas.</li>
+                    <li style="margin-bottom: 8px;"><strong>Orientación contra Bots:</strong> Si juegas contra la IA y te tocan las Negras, el tablero ahora aparecerá orientado correctamente desde la perspectiva de las Negras.</li>
+                </ul>
+
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 84</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Mejoras en el Menú Jugar:</strong> Se movió la opción del Modo Amistoso (Sandbox) al menú Jugar antes de iniciar partida. El tiempo personalizado ahora se guarda automáticamente para la siguiente partida.</li>
+                    <li style="margin-bottom: 8px;"><strong>Nueva Interfaz de Menú de Opciones:</strong> Controles alineados a la derecha y con mejor espaciado para mejor usabilidad en móvil.</li>
+                    <li style="margin-bottom: 8px;"><strong>Carga de Texturas Priorizada:</strong> Ahora incluye pantalla de carga inicial optimizada para evitar lag de assets. Las texturas no seleccionadas cargan en segundo plano sin ralentizar.</li>
+                    <li style="margin-bottom: 8px;"><strong>Nuevo Set Medieval Realista Completo:</strong> Diseños de personas hiperrealistas generados por IA para todas las piezas.</li>
+                    <li style="margin-bottom: 8px;"><strong>Limpieza de Sets:</strong> Se eliminaron todos los sets sin piezas implementadas. Solo quedan Default (Oficial) y Medieval Realista.</li>
+                    <li style="margin-bottom: 8px;"><strong>Rotación Táctica de Piezas:</strong> El tablero y las coordenadas permanecen fijos. Únicamente las texturas de las piezas rotan 180° en el turno de las Negras.</li>
+                    <li style="margin-bottom: 8px;"><strong>Ajuste de Cañón y Escudero:</strong> Arreglado el disparo/avance del Cañón, su sincronización visual de colores (Gris, Amarillo, Rojo), y restringido el contraataque a distancia del Escudero al Modo de Prueba.</li>
                 </ul>
 
                 <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 83</h3>
                 <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
-                    <li style="margin-bottom: 8px;"><strong>24 Sets de Texturas en Carpetas Dedicadas:</strong> Se organizaron y generaron todas las piezas temáticas con carpetas individuales limpias para cada cultura y estilo de fantasía.</li>
-                    <li style="margin-bottom: 8px;"><strong>Modo Versus (Blancas vs Negras):</strong> Los sets de enfrentamiento histórico cuentan con gráficos y emblemas únicos para cada bando.</li>
-                    <li style="margin-bottom: 8px;"><strong>Precarga Instantánea:</strong> Se eliminó por completo el retraso al abrir la Armería o el tablero mediante precarga en memoria caché.</li>
-                    <li style="margin-bottom: 8px;"><strong>Flechas Direccionales Temáticas:</strong> Flechas con diseños únicos por set que respetan los colores obligatorios.</li>
-                </ul>
-
-                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 82</h3>
-                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
-                    <li style="margin-bottom: 8px;"><strong>Sets Gráficos Temáticos:</strong> ¡Llegaron los temas visuales para las piezas! Ahora puedes elegir entre 24 sets gráficos distintos en las opciones (incluyendo Pixel Art, Sci-Fi, Culturas Históricas, Anime y más).</li>
-                    <li style="margin-bottom: 8px;"><strong>Carga Inteligente de Imágenes:</strong> El juego ahora maneja los gráficos de las piezas de forma dinámica, manteniendo la estabilidad y usando el set predeterminado si falta alguna imagen personalizada.</li>
-                </ul>
-
-                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 81</h3>
-                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
-                    <li style="margin-bottom: 8px;"><strong>UI Refinada:</strong> Se rediseñó el cartel de Puntos de Refuerzo en los menús de reclutamiento y negociación para ser más compacto y sutil.</li>
-                    <li style="margin-bottom: 8px;"><strong>Arquero en Modo Prueba:</strong> Ahora se mueve en cruz de acuerdo a su orientación actual y puede rotar libremente luego de disparar.</li>
-                    <li style="margin-bottom: 8px;"><strong>Retribución de Escudero:</strong> La habilidad de venganza ahora funciona correctamente contra unidades de ataque a distancia (Arqueros, Cañones y Magos) que hayan destruido aliados.</li>
-                </ul>
-
-                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 82</h3>
-                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
-                    <li style="margin-bottom: 8px;"><strong>Motor de Gráficos (GraphicsEngine):</strong> Nuevo sistema ultrarrápido de carga de texturas y skins sin lag ni congelamientos, con soporte de fallback automático inmediato a las piezas oficiales si un pack está incompleto.</li>
-                    <li style="margin-bottom: 8px;"><strong>Flechas Direccionales Temáticas:</strong> Las piezas octogonales (Dragón, Mago, Cañón, Defensor y Arquero) ahora cuentan con flechas direccionales diseñadas en el estilo artístico correspondiente (Pixel Art retro, láser Sci-Fi neón, cuarzo facetado y lanzas forjadas).</li>
-                    <li style="margin-bottom: 8px;"><strong>Armería Reparada:</strong> Restaurado el tablero interactivo de prueba de movimientos y habilidades en la Armería con respuesta táctil instantánea y sin bloqueos de interfaz.</li>
-                    <li style="margin-bottom: 8px;"><strong>Temas Visuales de Tablero y Menú:</strong> Soporte mejorado para personalizar colores y estilos del tablero y menús (Guerra Continental, Madera Clásica, Cyberpunk Neón, Oscuro y Cuarzo Místico).</li>
+                    <li style="margin-bottom: 8px;"><strong>Sets de Texturas por Carpetas:</strong> Organización de piezas temáticas en carpetas dedicadas.</li>
+                    <li style="margin-bottom: 8px;"><strong>Precarga en Caché:</strong> Eliminación de lag al cargar texturas en el tablero y en la Armería.</li>
                 </ul>
 
                 <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 80</h3>
@@ -101,6 +89,7 @@ const MenuController = {
 
                 <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 79</h3>
                 <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Historial de Actualizaciones (📜):</strong> Se agregó el botón con pergamino y la ventana de Changelog al menú principal.</li>
                     <li style="margin-bottom: 8px;"><strong>Tutorial Continental:</strong> Se corrigió un error interno al iniciar el tutorial, se ajustó el equipo Blanco en el Paso 3 (ahora ambos inician con 1 Peón, 1 Élite y 1 Comandante), y se añadió el botón de "Volver al Menú" durante la selección de tropas.</li>
                 </ul>
 

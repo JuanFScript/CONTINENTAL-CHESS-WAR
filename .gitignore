@@ -1,0 +1,12 @@
+node_modules/
+android/
+www/
+scratch/
+Continental-Chess-War.apk
+package-lock.json
+capacitor.config.json
+package.json
+dev_server.py
+generar_apk.bat
+Continental-Dev-Bot-Image.jpg
+README_PLAY_STORE.md

@@ -44,10 +44,10 @@ class BoardRenderer {
 
         for (let rIdx = 0; rIdx < this.board.rows; rIdx++) {
             for (let cIdx = 0; cIdx < this.board.cols; cIdx++) {
-                const r = rIdx;
-                const c = cIdx;
+                const r = this.flipped ? (this.board.rows - 1 - rIdx) : rIdx;
+                const c = this.flipped ? (this.board.cols - 1 - cIdx) : cIdx;
 
-                const isLight = (r + c) % 2 === 0;
+                const isLight = (rIdx + cIdx) % 2 === 0;
                 const square = document.createElement('div');
                 square.className = `board-square ${isLight ? 'square-light' : 'square-dark'}`;
                 square.dataset.row = r;
@@ -141,6 +141,14 @@ class BoardRenderer {
                     imgEl.alt = `${piece.color} ${piece.type}`;
                     imgEl.src = tex.src;
 
+                    // Rotate piece image texture 180 deg on Black's turn if auto-rotate is enabled (Pass & Play on 1 device)
+                    const autoRotateBlack = localStorage.getItem('continental_auto_rotate_black') !== 'false';
+                    const activeColor = this.getActiveColor();
+                    const shouldRotate = !this.flipped && autoRotateBlack && (activeColor === 'b');
+                    if (shouldRotate) {
+                        imgEl.style.transform = 'rotate(180deg)';
+                    }
+
                     imgEl.onerror = function() {
                         if (this.dataset.failedOnce) {
                             this.style.display = 'none';
@@ -148,6 +156,9 @@ class BoardRenderer {
                                 const symSpan = document.createElement('span');
                                 symSpan.className = 'piece-custom-symbol';
                                 symSpan.textContent = tex.symbolFallback || '♟';
+                                if (shouldRotate) {
+                                    symSpan.style.transform = 'rotate(180deg)';
+                                }
                                 pieceEl.appendChild(symSpan);
                             }
                         } else {
@@ -210,9 +221,11 @@ class BoardRenderer {
         let typePattern = 'forward'; // 'forward', 'defensor_left', 'mago'
 
         if (piece.type === 'c_canon') {
+            const isOnCooldown = piece.justFired || piece.cooldownActive || piece.usedBeamLastTurn || (piece.beamCooldown && piece.beamCooldown > 0);
+            
             if (piece.justFired) {
                 colorHex = '#6b7280'; // Gris inmediatamente tras disparar
-            } else if (piece.cooldownActive) {
+            } else if (isOnCooldown) {
                 colorHex = '#f59e0b'; // Amarillo durante el turno de recarga y aviso previo al rival
             } else {
                 colorHex = '#ef4444'; // Rojo (cargado/listo para disparar, se mantiene rojo sin cambiar)

@@ -92,15 +92,15 @@ const OptionsTab = {
                         </div>
                     </div>
 
-                    <!-- MODO AMISTOSO / SANDBOX -->
+                    <!-- ROTAR PIEZAS EN TURNO DE NEGRAS -->
                     <div class="setting-row">
                         <div class="setting-label">
-                            <strong>Modo Amistoso / Sandbox</strong>
-                            <span class="setting-sub">Activa el botón para deshacer movimientos (↩️ Deshacer) en partidas</span>
+                            <strong>Rotar piezas en turno de Negras</strong>
+                            <span class="setting-sub">Gira las imágenes de las piezas 180° cuando le toca jugar a las Negras</span>
                         </div>
                         <div class="setting-control">
                             <label class="toggle-switch">
-                                <input type="checkbox" id="opt-sandbox-mode-toggle" ${currentSandboxMode ? 'checked' : ''}>
+                                <input type="checkbox" id="opt-auto-rotate-black-toggle" ${currentAutoRotateBlack ? 'checked' : ''}>
                                 <span class="slider"></span>
                             </label>
                         </div>
@@ -300,18 +300,21 @@ const OptionsTab = {
             pieceStyleList.innerHTML = listHtml;
 
             pieceStyleList.querySelectorAll('.ps-option-card').forEach(card => {
-                card.addEventListener('click', (e) => {
+                card.addEventListener('click', async (e) => {
                     const newStyle = e.currentTarget.dataset.value;
+                    pieceModal.classList.remove('modal-active');
                     
                     if (activeSelectingTarget === 'w') {
+                        if (typeof GraphicsEngine !== 'undefined') {
+                            await GraphicsEngine.setPieceStyle(newStyle, 'w');
+                        }
                         updateDisplayW(newStyle);
-                        if (typeof GraphicsEngine !== 'undefined') GraphicsEngine.setPieceStyle(newStyle, 'w');
                     } else {
+                        if (typeof GraphicsEngine !== 'undefined') {
+                            await GraphicsEngine.setPieceStyle(newStyle, 'b');
+                        }
                         updateDisplayB(newStyle);
-                        if (typeof GraphicsEngine !== 'undefined') GraphicsEngine.setPieceStyle(newStyle, 'b');
                     }
-
-                    pieceModal.classList.remove('modal-active');
                 });
             });
         }
@@ -355,7 +358,7 @@ const OptionsTab = {
             const themeSelect = document.getElementById('opt-theme-select');
             const centerTurnsSelect = document.getElementById('opt-center-turns-select');
             const centerConsecutiveToggle = document.getElementById('opt-center-consecutive-toggle');
-            const sandboxModeToggle = document.getElementById('opt-sandbox-mode-toggle');
+
             const testModeToggle = document.getElementById('opt-test-mode-toggle');
 
             if (langSelect) I18n.setLanguage(langSelect.value);
@@ -393,9 +396,7 @@ const OptionsTab = {
             if (centerConsecutiveToggle) {
                 localStorage.setItem('continental_center_consecutive', centerConsecutiveToggle.checked);
             }
-            if (sandboxModeToggle) {
-                localStorage.setItem('continental_sandbox_mode', sandboxModeToggle.checked);
-            }
+
             const autoRotateToggle = document.getElementById('opt-auto-rotate-black-toggle');
             if (autoRotateToggle) {
                 localStorage.setItem('continental_auto_rotate_black', autoRotateToggle.checked);

@@ -1,9 +1,61 @@
-/**
- * CONTINENTAL - Graphics & Theme Engine
- * Clean folder-based graphics manager for piece skins, texture packs, instant fallbacks,
- * preloading caches, themed directional arrows (Dragon, Mago, Cañón, Defensor, Arquero),
- * and board/menu visual themes.
- */
+const LoadingScreen = {
+    show(title = "Cargando CONTINENTAL...", subtitle = "Preparando texturas") {
+        let overlay = document.getElementById('app-loading-screen');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'app-loading-screen';
+            overlay.className = 'loading-screen-overlay';
+            overlay.innerHTML = `
+                <div class="loading-card glass-panel animate-fade-in">
+                    <div class="loading-icon-spinner">⚔️</div>
+                    <h2 id="loading-title" class="loading-title">Cargando CONTINENTAL...</h2>
+                    <p id="loading-subtitle" class="loading-subtitle">Preparando texturas y piezas</p>
+                    <div class="loading-progress-bar-container">
+                        <div id="loading-progress-fill" class="loading-progress-fill" style="width: 0%;"></div>
+                    </div>
+                    <span id="loading-percentage" class="loading-percentage">0%</span>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+
+        const titleEl = document.getElementById('loading-title');
+        const subEl = document.getElementById('loading-subtitle');
+        const fillEl = document.getElementById('loading-progress-fill');
+        const percentEl = document.getElementById('loading-percentage');
+
+        if (titleEl) titleEl.textContent = title;
+        if (subEl) subEl.textContent = subtitle;
+        if (fillEl) fillEl.style.width = '0%';
+        if (percentEl) percentEl.textContent = '0%';
+
+        overlay.style.display = 'flex';
+        overlay.classList.remove('hidden');
+    },
+
+    update(percent, subtitle = null) {
+        const fillEl = document.getElementById('loading-progress-fill');
+        const percentEl = document.getElementById('loading-percentage');
+        const subEl = document.getElementById('loading-subtitle');
+
+        const clamped = Math.min(100, Math.max(0, Math.round(percent)));
+        if (fillEl) fillEl.style.width = `${clamped}%`;
+        if (percentEl) percentEl.textContent = `${clamped}%`;
+        if (subtitle && subEl) subEl.textContent = subtitle;
+    },
+
+    hide() {
+        const overlay = document.getElementById('app-loading-screen');
+        if (overlay) {
+            overlay.classList.add('hidden');
+            setTimeout(() => {
+                if (overlay.classList.contains('hidden')) {
+                    overlay.style.display = 'none';
+                }
+            }, 300);
+        }
+    }
+};
 
 const GraphicsEngine = {
     // Current piece style folders
@@ -79,38 +131,137 @@ const GraphicsEngine = {
         return result;
     },
 
-    /**
-     * Preload all pieces of the active style into memory Image objects
-     * to eliminate visual latency and flickering when opening the Armory or starting games.
-     */
-    preloadActiveSet() {
-        const styles = [this.currentPieceStyleWhite || 'default', this.currentPieceStyleBlack || 'default'];
-        const pieceList = [
-            'rey', 'reina', 'torre', 'alfil', 'caballo', 'peon',
-            'dama', 'lobo', 'escudero', 'guardia', 'soldado', 'mercenario',
-            'elefante', 'piquetero', 'arquero', 'defensor', 'canon', 'dragon', 'gigante', 'mago'
-        ];
+    loadedSetsMap: new Map(),
+    isBackgroundPreloading: false,
 
-        styles.forEach(style => {
+    init() {
+        const savedTheme = localStorage.getItem('continental_theme') || 'war';
+        this.applyTheme(savedTheme);
+        this.initStartupPreload();
+    },
+
+    applyTheme(theme) {
+        localStorage.setItem('continental_theme', theme);
+        document.body.className = `theme-${theme}`;
+    },
+
+    async initStartupPreload() {
+        const whiteStyle = this.currentPieceStyleWhite || 'default';
+        const blackStyle = this.currentPieceStyleBlack || 'default';
+        const activeStyles = Array.from(new Set([whiteStyle, blackStyle]));
+
+        if (typeof LoadingScreen !== 'undefined') {
+            LoadingScreen.show("Cargando CONTINENTAL...", "Cargando texturas y piezas activas");
+        }
+
+        let totalStyles = activeStyles.length;
+        let completedStyles = 0;
+
+        for (const styleKey of activeStyles) {
+            await this.preloadSetPromise(styleKey, (percent) => {
+                if (typeof LoadingScreen !== 'undefined') {
+                    const overallPercent = Math.floor((completedStyles / totalStyles) * 100 + (percent / totalStyles));
+                    LoadingScreen.update(overallPercent, `Cargando set (${styleKey})... ${percent}%`);
+                }
+            });
+            completedStyles++;
+        }
+
+        if (typeof LoadingScreen !== 'undefined') {
+            LoadingScreen.update(100, "¡Listo!");
+            setTimeout(() => {
+                LoadingScreen.hide();
+                this.startBackgroundPreloadQueue();
+            }, 200);
+        } else {
+            this.startBackgroundPreloadQueue();
+        }
+    },
+
+    preloadSetPromise(styleKey, progressCallback) {
+        if (this.loadedSetsMap.get(styleKey) === true) {
+            if (progressCallback) progressCallback(100);
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            const pieceList = [
+                'rey', 'reina', 'torre', 'alfil', 'caballo', 'peon',
+                'dama', 'lobo', 'escudero', 'guardia', 'soldado', 'mercenario',
+                'elefante', 'piquetero', 'arquero', 'defensor', 'canon', 'dragon', 'gigante', 'mago'
+            ];
+
+            const imageUrls = [];
+            const ext = (styleKey === 'default') ? 'svg' : 'png';
+
             pieceList.forEach(p => {
                 const isFem = (p === 'reina' || p === 'dama' || p === 'torre');
                 const wName = isFem ? `${p}_blanca` : `${p}_blanco`;
                 const bName = isFem ? `${p}_negra` : `${p}_negro`;
 
-                const ext = (style === 'default') ? 'svg' : 'png';
-                const imgW = new Image();
-                imgW.src = `Imagenes de las piezas/${style}/${wName}.${ext}?v=84`;
-                const imgB = new Image();
-                imgB.src = `Imagenes de las piezas/${style}/${bName}.${ext}?v=84`;
+                imageUrls.push(`Imagenes de las piezas/${styleKey}/${wName}.${ext}?v=84`);
+                imageUrls.push(`Imagenes de las piezas/${styleKey}/${bName}.${ext}?v=84`);
+            });
+
+            let loadedCount = 0;
+            const total = imageUrls.length;
+
+            if (total === 0) {
+                this.loadedSetsMap.set(styleKey, true);
+                if (progressCallback) progressCallback(100);
+                resolve();
+                return;
+            }
+
+            const checkDone = () => {
+                loadedCount++;
+                const percent = Math.min(100, Math.floor((loadedCount / total) * 100));
+                if (progressCallback) progressCallback(percent);
+
+                if (loadedCount >= total) {
+                    this.loadedSetsMap.set(styleKey, true);
+                    resolve();
+                }
+            };
+
+            imageUrls.forEach(url => {
+                const img = new Image();
+                img.onload = checkDone;
+                img.onerror = checkDone;
+                img.src = url;
             });
         });
     },
 
-    /**
-     * Update active piece style folder dynamically
-     */
-    setPieceStyle(styleKey, targetColor = 'both') {
+    async ensureSetLoaded(styleKey, labelName = null) {
+        if (this.loadedSetsMap.get(styleKey) === true) {
+            return Promise.resolve();
+        }
+
+        const displayName = labelName || (typeof PieceSetRegistry !== 'undefined' ? PieceSetRegistry.formatUncategorizedLabel(styleKey) : styleKey);
+        if (typeof LoadingScreen !== 'undefined') {
+            LoadingScreen.show(`Cargando Set: ${displayName}`, "Priorizando descarga de texturas...");
+        }
+
+        await this.preloadSetPromise(styleKey, (percent) => {
+            if (typeof LoadingScreen !== 'undefined') {
+                LoadingScreen.update(percent, `Descargando imágenes... ${percent}%`);
+            }
+        });
+
+        if (typeof LoadingScreen !== 'undefined') {
+            LoadingScreen.update(100, "¡Completado!");
+            await new Promise(r => setTimeout(r, 150));
+            LoadingScreen.hide();
+        }
+    },
+
+    async setPieceStyle(styleKey, targetColor = 'both') {
         const style = styleKey || 'default';
+        const labelName = (typeof PieceSetRegistry !== 'undefined') ? PieceSetRegistry.formatUncategorizedLabel(styleKey) : styleKey;
+        
+        await this.ensureSetLoaded(style, labelName);
+
         if (targetColor === 'w' || targetColor === 'both') {
             this.currentPieceStyleWhite = style;
             localStorage.setItem('continental_piece_style_white', style);
@@ -122,7 +273,33 @@ const GraphicsEngine = {
         this.currentPieceStyle = style;
         localStorage.setItem('continental_piece_style', style);
         this.resolvedUrlCache.clear();
-        this.preloadActiveSet();
+
+        if (typeof window !== 'undefined' && window.gameController && window.gameController.renderer) {
+            window.gameController.renderer.render();
+        }
+    },
+
+    async startBackgroundPreloadQueue() {
+        if (this.isBackgroundPreloading) return;
+        this.isBackgroundPreloading = true;
+
+        const allFolders = (typeof PieceSetRegistry !== 'undefined' && PieceSetRegistry.discoveredFolderIds)
+            ? PieceSetRegistry.discoveredFolderIds
+            : ['default', 'medieval_real'];
+
+        const unselectedFolders = allFolders.filter(id => !this.loadedSetsMap.get(id));
+
+        for (const styleKey of unselectedFolders) {
+            if (this.loadedSetsMap.get(styleKey) === true) continue;
+            await this.preloadSetPromise(styleKey, null);
+            await new Promise(r => setTimeout(r, 100));
+        }
+
+        this.isBackgroundPreloading = false;
+    },
+
+    preloadActiveSet() {
+        this.initStartupPreload();
     },
 
     // =========================================================================
@@ -144,7 +321,7 @@ const GraphicsEngine = {
 
         const isWhite = piece.color === 'w';
         const facing = (piece.facing !== undefined) ? piece.facing : (isWhite ? 0 : 180);
-        const renderFacing = facing;
+        const renderFacing = flipped ? (facing + 180) % 360 : facing;
         const style = this.currentPieceStyle || localStorage.getItem('continental_piece_style') || 'default';
 
         // Remove any preexisting arrow overlay in this square
@@ -155,11 +332,13 @@ const GraphicsEngine = {
         let glowColor = 'rgba(245, 158, 11, 0.6)';
 
         if (piece.type === 'c_canon') {
+            const isOnCooldown = piece.justFired || piece.cooldownActive || piece.usedBeamLastTurn || (piece.beamCooldown && piece.beamCooldown > 0);
+            
             // CAÑÓN SIEMPRE DEBE TENER 3 COLORES OBLIGATORIOS: GRIS, AMARILLO Y ROJO
             if (piece.justFired) {
                 mainColor = '#6b7280'; // Gris: recién disparado
                 glowColor = 'rgba(107, 114, 128, 0.4)';
-            } else if (piece.cooldownActive) {
+            } else if (isOnCooldown) {
                 mainColor = '#f59e0b'; // Amarillo: recargando / turno previo
                 glowColor = 'rgba(245, 158, 11, 0.6)';
             } else {
@@ -203,156 +382,13 @@ const GraphicsEngine = {
      * Single forward pointer (Dragon, Cañón, Arquero)
      */
     generateForwardArrowSvg(style, color, glow, angle, pieceType) {
-        // 1. Pixel Art (Fantasy & Retro)
-        if (style === 'pixel_fantasy' || style === 'pixel_retro') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 2px ${glow})">
-                    <rect x="21" y="2" width="3" height="3" fill="${color}" />
-                    <rect x="18" y="5" width="3" height="3" fill="${color}" />
-                    <rect x="24" y="5" width="3" height="3" fill="${color}" />
-                    <rect x="15" y="8" width="3" height="3" fill="${color}" />
-                    <rect x="27" y="8" width="3" height="3" fill="${color}" />
-                    <rect x="21" y="8" width="3" height="7" fill="${color}" />
-                    <rect x="19.5" y="11" width="6" height="2" fill="${color}" />
-                </g>
-            `;
-        }
-
-        // 2. Sci-Fi Futuro & Neón
-        if (style === 'scifi' || style === 'neon') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 4px ${glow})">
-                    <polygon points="22.5,1 27,6 24,6 24,12 21,12 21,6 18,6" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <line x1="22.5" y1="3" x2="22.5" y2="11" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" />
-                    <circle cx="22.5" cy="14" r="1.5" fill="${color}" />
-                </g>
-            `;
-        }
-
-        // 3. Cyborg & Neón (HUD hexagonal)
-        if (style === 'cyborg') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
-                    <polygon points="22.5,2 26,5 26,10 22.5,13 19,10 19,5" fill="none" stroke="${color}" stroke-width="1.2" />
-                    <polygon points="22.5,4 24.5,6.5 22.5,9 20.5,6.5" fill="${color}" />
-                    <line x1="22.5" y1="13" x2="22.5" y2="16" stroke="${color}" stroke-width="1.5" />
-                </g>
-            `;
-        }
-
-        // 4. Cuarzo, Bronce & Amatista (Cristal)
-        if (style === 'crystal_jewel') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
-                    <polygon points="22.5,1.5 27,7 22.5,14 18,7" fill="${color}" fill-opacity="0.88" stroke="#ffffff" stroke-width="1" />
-                    <line x1="22.5" y1="1.5" x2="22.5" y2="14" stroke="#ffffff" stroke-width="0.8" />
-                    <polygon points="22.5,4 25,7 22.5,10 20,7" fill="#ffffff" fill-opacity="0.4" />
-                </g>
-            `;
-        }
-
-        // 5. Steampunk
-        if (style === 'steampunk') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.8))">
-                    <circle cx="22.5" cy="13" r="3.5" fill="none" stroke="${color}" stroke-width="1.2" stroke-dasharray="2,1.5" />
-                    <path d="M 22.5,2 L 25.5,8 L 23.5,8 L 23.5,13 L 21.5,13 L 21.5,8 L 19.5,8 Z" fill="${color}" stroke="#451a03" stroke-width="0.8" />
-                    <circle cx="22.5" cy="13" r="1.2" fill="#fbbf24" />
-                </g>
-            `;
-        }
-
-        // 6. Samuráis & Ninjas
-        if (style === 'samurai_ninja') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
-                    <polygon points="22.5,1 26,7 23.5,9 23.5,13 21.5,13 21.5,9 19,7" fill="${color}" stroke="#ffffff" stroke-width="0.7" />
-                    <line x1="22.5" y1="2" x2="22.5" y2="9" stroke="#ffffff" stroke-width="1" />
-                    <circle cx="22.5" cy="15" r="1.8" fill="none" stroke="${color}" stroke-width="1.2" />
-                </g>
-            `;
-        }
-
-        // 7. Aztecas vs Mayas (Obsidiana)
-        if (style === 'aztec_maya') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
-                    <polygon points="22.5,1 26,5 24,7 26.5,10 23.5,11 23.5,14 21.5,14 21.5,11 18.5,10 21,7 19,5" fill="${color}" stroke="#1c1917" stroke-width="1" />
-                    <polygon points="22.5,4 24,6 22.5,8 21,6" fill="#fef08a" />
-                </g>
-            `;
-        }
-
-        // 8. Piratas vs Flota Real (Sable / Brújula)
-        if (style === 'pirates_royal') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
-                    <path d="M 22.5,1.5 C 24,4 26,8 25,12 L 23.5,12 L 23.5,14 L 21.5,14 L 21.5,12 L 20,12 C 19,8 21,4 22.5,1.5 Z" fill="${color}" stroke="#fef08a" stroke-width="0.8" />
-                    <circle cx="22.5" cy="14" r="2" fill="none" stroke="${color}" stroke-width="1" />
-                </g>
-            `;
-        }
-
-        // 9. Gauchos Tradicionales (Facón Criollo)
-        if (style === 'gauchos') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 2px ${glow})">
-                    <polygon points="22.5,1.5 25,6 23.5,7 23.5,12 21.5,12 21.5,7 20,6" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <line x1="19" y1="12" x2="26" y2="12" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" />
-                    <line x1="22.5" y1="12" x2="22.5" y2="15" stroke="${color}" stroke-width="1.8" />
-                </g>
-            `;
-        }
-
-        // 10. Imperio Romano, Esparta & Macedonia
-        if (style === 'roman' || style === 'sparta_athens' || style === 'macedon_persia') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
-                    <polygon points="22.5,1 25.5,5 24,9 24,13 21,13 21,9 19.5,5" fill="${color}" stroke="#fef08a" stroke-width="0.9" />
-                    <line x1="22.5" y1="2" x2="22.5" y2="13" stroke="#ffffff" stroke-width="1" />
-                </g>
-            `;
-        }
-
-        // 11. Medieval Real, Francés & Reconquista
-        if (style === 'medieval_real' || style === 'medieval_uk_fr' || style === 'reconquista') {
+        // 11. Medieval Real
+        if (style === 'medieval_real') {
             return `
                 <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.8))">
                     <polygon points="22.5,1.5 26,7 23.5,7 23.5,12 21.5,12 21.5,7 19,7" fill="${color}" stroke="#1f2937" stroke-width="1" />
                     <line x1="19" y1="12" x2="26" y2="12" stroke="${color}" stroke-width="1.5" stroke-linecap="round" />
                     <circle cx="22.5" cy="14.5" r="1.2" fill="${color}" />
-                </g>
-            `;
-        }
-
-        // 12. Segunda Guerra Mundial & Guerra Fría (Balística / Radar)
-        if (style === 'ww2' || style === 'coldwar') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
-                    <path d="M 18,7 L 22.5,2 L 27,7 L 25,7 L 22.5,4 L 20,7 Z" fill="${color}" />
-                    <line x1="22.5" y1="4" x2="22.5" y2="13" stroke="${color}" stroke-width="1.8" stroke-dasharray="2,1" />
-                    <circle cx="22.5" cy="14" r="1.5" fill="${color}" />
-                </g>
-            `;
-        }
-
-        // 13. Mongol, Indio, Africano, Inuit, Colonizadores
-        if (['mongol', 'indian', 'african', 'inuit_polar', 'colonizers_natives'].includes(style)) {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
-                    <polygon points="22.5,1 26,6 23.5,6 24,12 21,12 21.5,6 19,6" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <line x1="22.5" y1="2" x2="22.5" y2="12" stroke="#ffffff" stroke-width="0.8" />
-                </g>
-            `;
-        }
-
-        // 14. Anime
-        if (style === 'anime') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 4px ${glow})">
-                    <polygon points="22.5,1 27,7 23,6 23,12 22,12 22,6 18,7" fill="${color}" stroke="#ffffff" stroke-width="1" />
-                    <line x1="22.5" y1="1" x2="22.5" y2="8" stroke="#ffffff" stroke-width="1.5" />
-                    <polygon points="22.5,14 24,12 22.5,10 21,12" fill="${color}" />
                 </g>
             `;
         }
@@ -370,51 +406,6 @@ const GraphicsEngine = {
      * 3-Direction Defensor Shield Fan (North, North-East, North-West)
      */
     generateDefensorFanSvg(style, color, glow, angle) {
-        if (style === 'pixel_fantasy' || style === 'pixel_retro') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 2px ${glow})">
-                    <rect x="20" y="2" width="5" height="4" fill="${color}" />
-                    <rect x="21.5" y="6" width="2" height="3" fill="${color}" />
-                    <rect x="34" y="5" width="4" height="4" fill="${color}" />
-                    <rect x="7" y="5" width="4" height="4" fill="${color}" />
-                    <path d="M 10,7 Q 22.5,4 35,7" stroke="${color}" stroke-width="1.5" stroke-dasharray="2,2" fill="none" />
-                </g>
-            `;
-        }
-
-        if (style === 'scifi' || style === 'neon' || style === 'cyborg') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 4px ${glow})">
-                    <path d="M 7,10 Q 22.5,2 38,10" stroke="${color}" stroke-width="2.5" stroke-linecap="round" fill="none" />
-                    <path d="M 10,12 Q 22.5,5 35,12" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" fill="none" />
-                    <circle cx="22.5" cy="3.5" r="2" fill="#ffffff" />
-                    <circle cx="9" cy="11" r="1.5" fill="#ffffff" />
-                    <circle cx="36" cy="11" r="1.5" fill="#ffffff" />
-                </g>
-            `;
-        }
-
-        if (style === 'crystal_jewel') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
-                    <polygon points="22.5,2 26,6 22.5,10 19,6" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <polygon points="36,7 39,10 36,14 33,10" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <polygon points="9,7 12,10 9,14 6,10" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <path d="M 9,10 Q 22.5,4 36,10" stroke="${color}" stroke-width="1.2" fill="none" />
-                </g>
-            `;
-        }
-
-        if (style === 'steampunk') {
-            return `
-                <g transform="rotate(${angle} 22.5 22.5)" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.8))">
-                    <path d="M 8,11 Q 22.5,4 37,11" stroke="${color}" stroke-width="2" fill="none" />
-                    <circle cx="22.5" cy="4.5" r="2.5" fill="${color}" stroke="#451a03" stroke-width="0.8" />
-                    <circle cx="9" cy="11" r="2" fill="${color}" stroke="#451a03" stroke-width="0.8" />
-                    <circle cx="36" cy="11" r="2" fill="${color}" stroke="#451a03" stroke-width="0.8" />
-                </g>
-            `;
-        }
 
         // Default & Tactical: Triple shield chevron fan
         return `
@@ -433,43 +424,6 @@ const GraphicsEngine = {
     generateMagoStarSvg(style, color, glow, angle, isMercenary) {
         const rot = isMercenary ? (angle + 45) : angle;
 
-        if (style === 'pixel_fantasy' || style === 'pixel_retro') {
-            return `
-                <g transform="rotate(${rot} 22.5 22.5)" filter="drop-shadow(0 0 2px ${glow})">
-                    <rect x="21" y="2" width="3" height="3" fill="${color}" />
-                    <rect x="21" y="40" width="3" height="3" fill="${color}" />
-                    <rect x="2" y="21" width="3" height="3" fill="${color}" />
-                    <rect x="40" y="21" width="3" height="3" fill="${color}" />
-                    <circle cx="22.5" cy="22.5" r="1.5" fill="${color}" />
-                </g>
-            `;
-        }
-
-        if (style === 'scifi' || style === 'neon' || style === 'cyborg') {
-            return `
-                <g transform="rotate(${rot} 22.5 22.5)" filter="drop-shadow(0 0 4px ${glow})">
-                    <circle cx="22.5" cy="22.5" r="16" stroke="${color}" stroke-width="1.2" stroke-dasharray="4,4" fill="none" />
-                    <line x1="22.5" y1="2" x2="22.5" y2="7" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
-                    <line x1="22.5" y1="38" x2="22.5" y2="43" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
-                    <line x1="2" y1="22.5" x2="7" y2="22.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
-                    <line x1="38" y1="22.5" x2="43" y2="22.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
-                </g>
-            `;
-        }
-
-        if (style === 'crystal_jewel') {
-            return `
-                <g transform="rotate(${rot} 22.5 22.5)" filter="drop-shadow(0 0 4px ${glow})">
-                    <polygon points="22.5,2 25,6 22.5,9 20,6" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <polygon points="22.5,43 25,39 22.5,36 20,39" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <polygon points="2,22.5 6,25 9,22.5 6,20" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <polygon points="43,22.5 39,25 36,22.5 39,20" fill="${color}" stroke="#ffffff" stroke-width="0.8" />
-                    <circle cx="22.5" cy="22.5" r="14" stroke="${color}" stroke-width="1" stroke-dasharray="2,3" fill="none" opacity="0.75" />
-                </g>
-            `;
-        }
-
-        // Default & Other styles: Arcane Star Cross
         return `
             <g transform="rotate(${rot} 22.5 22.5)" filter="drop-shadow(0 0 3px ${glow})">
                 <path d="M 19.5,5.5 L 22.5,2 L 25.5,5.5" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>

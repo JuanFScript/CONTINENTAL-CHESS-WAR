@@ -8,48 +8,16 @@ const PieceSetRegistry = {
     // Classification categories
     categories: [
         {
-            name: "🎨 Ficticios / Fantasía",
+            name: "🎨 Sets Disponibles",
             sets: [
-                { id: "medieval_real", label: "Medieval Realista (Personas)" },
-                { id: "pixel_fantasy", label: "Pixel Art Fantasía" },
-                { id: "pixel_retro", label: "Pixel Art Retro (8-bits)" },
-                { id: "crystal_jewel", label: "Cuarzo, Bronce & Amatista" },
-                { id: "anime", label: "Estilo Anime" },
-                { id: "scifi", label: "Sci-Fi Futuro" },
-                { id: "steampunk", label: "Steampunk" },
-                { id: "cyborg", label: "Cyborgs & Neón" }
-            ]
-        },
-        {
-            name: "🏛️ Históricos / Culturales",
-            sets: [
-                { id: "colonizers_natives", label: "Colonizadores vs Nativos" },
-                { id: "aztec_maya", label: "Aztecas vs Mayas" },
-                { id: "pirates_royal", label: "Piratas vs Flota Real" },
-                { id: "medieval_uk_fr", label: "Medieval Inglés vs Francés" },
-                { id: "reconquista", label: "Reconquista Española" },
-                { id: "samurai_ninja", label: "Samuráis & Ninjas" },
-                { id: "gauchos", label: "Gauchos Tradicionales" },
-                { id: "roman", label: "Imperio Romano" },
-                { id: "mongol", label: "Imperio Mongol" },
-                { id: "indian", label: "Cultura India Antigua" },
-                { id: "african", label: "Arte Tribal Africano" },
-                { id: "inuit_polar", label: "Inuit & Polo Norte" },
-                { id: "sparta_athens", label: "Esparta vs Atenas" },
-                { id: "macedon_persia", label: "Macedonia vs Persia" },
-                { id: "ww2", label: "Segunda Guerra Mundial" },
-                { id: "coldwar", label: "Guerra Fría (EEUU vs URSS)" }
+                { id: "medieval_real", label: "Medieval Realista (Personas)" }
             ]
         }
     ],
 
     // Default fallback discovered folder IDs
     discoveredFolderIds: [
-        "default", "medieval_real", "pixel_fantasy", "pixel_retro", "crystal_jewel",
-        "anime", "scifi", "steampunk", "cyborg", "colonizers_natives", "aztec_maya",
-        "pirates_royal", "medieval_uk_fr", "reconquista", "samurai_ninja", "gauchos",
-        "roman", "mongol", "indian", "african", "inuit_polar", "sparta_athens",
-        "macedon_persia", "ww2", "coldwar"
+        "default", "medieval_real"
     ],
 
     isLoaded: false,

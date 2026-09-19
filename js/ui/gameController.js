@@ -83,6 +83,14 @@ class GameController {
 
         this.boardRenderer.flipped = (options.playerSide === 'b' && options.mode === 'ai');
 
+        if (options.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+            NetworkManager.onMoveReceived = (moveData) => {
+                if (moveData && moveData.fromR !== undefined) {
+                    this.executeUserMove(moveData.fromR, moveData.fromC, moveData.toR, moveData.toC, null);
+                }
+            };
+        }
+
         this.stopClock();
         this.renderHUD();
 
@@ -117,22 +125,22 @@ class GameController {
     handleSquareClick(r, c) {
         if (this.isGameOver || this.isWolfPromptActive || this.isDrafting) return;
 
-        if (this.matchOptions.mode === 'ai') {
-            if (this.rulesEngine.activeColor !== this.matchOptions.playerSide) {
-                return;
-            }
-        }
-
         // Check Throw Landing Selection Mode (Gigante Throw)
         if (this.isThrowMode && this.throwData) {
             this.executeGiganteThrowLanding(r, c);
             return;
         }
 
-        // Check Reinforcement Placement Mode
+        // Check Reinforcement Placement Mode (Must run before turn check so Black can place reinforcements in Gran Ejército)
         if (this.isReinforcementMode && this.reinforcementData) {
             this.executeReinforcementPlacement(r, c);
             return;
+        }
+
+        if (this.matchOptions.mode === 'ai') {
+            if (this.rulesEngine.activeColor !== this.matchOptions.playerSide) {
+                return;
+            }
         }
 
         const clickedPiece = this.boardEngine.getPiece(r, c);
@@ -1665,7 +1673,7 @@ class GameController {
             this.rulesEngine.activeColor = 'w';
         }
 
-        this.boardRenderer.flipped = false; // Ensure it's never flipped
+        this.boardRenderer.flipped = (this.matchOptions?.mode === 'ai' && this.matchOptions?.playerSide === 'b');
         this.boardRenderer.render();
         this.updateMatchState(result, () => {
             if (this.isGameOver) return;
@@ -1969,7 +1977,7 @@ class GameController {
             submodeBadge = `👑 Clásico`;
         }
 
-        const isSandbox = (this.matchOptions?.isSandbox || this.matchOptions?.sandboxMode || (typeof localStorage !== 'undefined' && localStorage.getItem('continental_sandbox_mode') === 'true'));
+        const isSandbox = (this.matchOptions?.isSandbox || this.matchOptions?.sandboxMode || false);
         const undoBtn = (isSandbox && this.moveHistoryStack && this.moveHistoryStack.length > 0)
             ? `<button id="btn-game-undo" class="action-btn secondary-btn small-btn" style="background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; color: #a7f3d0; font-weight: bold;">↩️ Deshacer</button>`
             : '';

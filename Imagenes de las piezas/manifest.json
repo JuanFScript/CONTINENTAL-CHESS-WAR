@@ -1,29 +1,6 @@
 {
   "sets": [
     "default",
-    "african",
-    "anime",
-    "aztec_maya",
-    "coldwar",
-    "colonizers_natives",
-    "crystal_jewel",
-    "cyborg",
-    "gauchos",
-    "indian",
-    "inuit_polar",
-    "macedon_persia",
-    "medieval_real",
-    "medieval_uk_fr",
-    "mongol",
-    "pirates_royal",
-    "pixel_fantasy",
-    "pixel_retro",
-    "reconquista",
-    "roman",
-    "samurai_ninja",
-    "scifi",
-    "sparta_athens",
-    "steampunk",
-    "ww2"
+    "medieval_real"
   ]
 }
