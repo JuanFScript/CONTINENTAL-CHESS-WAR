@@ -1,5 +1,5 @@
 /**
- * CONTINENTAL - Match Setup Modal (Chess.com Style)
+ * CONTINENTAL - Match Setup Modal
  * Configures Game (Continental / Ajedrez), Sub-modes, Time Controls, Color, Game Mode (VS Bot, Pass&Play, LAN), and AI Difficulty.
  */
 
@@ -17,6 +17,15 @@ const MatchSetupModal = {
     init(container, onStartCallback) {
         this.container = container;
         this.onStartMatch = onStartCallback;
+
+        if (typeof NetworkManager !== 'undefined') {
+            NetworkManager.onMatchStart = (options) => {
+                this.close();
+                if (this.onStartMatch) {
+                    this.onStartMatch(options);
+                }
+            };
+        }
     },
 
     open() {
@@ -57,37 +66,34 @@ const MatchSetupModal = {
         const customTimeSec = localStorage.getItem('continental_custom_time_sec') || '30';
         const sandboxMode = false;
 
-        const playerName = (typeof NetworkManager !== 'undefined') ? NetworkManager.getPlayerName() : 'Comandante Drake';
-
-        // Generate Submodes
-        const submodes = this.getSubmodesForGame(this.selectedGame);
-
         const modalHtml = `
             <div id="match-setup-modal" class="modal-overlay modal-active">
                 <div class="modal-card match-setup-card animate-pop-in">
-                    <button class="modal-close-btn" id="btn-close-setup">×</button>
+                    <button class="action-btn secondary-btn small-btn btn-back-menu" id="btn-close-setup" style="margin-bottom: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 10px;" data-i18n="btnBackMenu">
+                        ${(typeof I18n !== 'undefined' ? I18n.get('btnBackMenu') : null) || '⬅️ Volver al Menú'}
+                    </button>
                     
-                    <h2 class="modal-title" data-i18n="setupTitle">${I18n.get('setupTitle')}</h2>
+                    <h2 class="modal-title" data-i18n="setupTitle">${(typeof I18n !== 'undefined' ? I18n.get('setupTitle') : null) || 'Configurar Partida'}</h2>
 
                     <!-- 1. GAME SELECTOR (TABS) -->
                     <div class="setup-tabs">
                         <button class="setup-tab-btn ${this.selectedGame === 'continental' ? 'tab-active' : ''}" data-game="continental" data-i18n="gameContinental">
-                            ${I18n.get('gameContinental')}
+                            ${(typeof I18n !== 'undefined' ? I18n.get('gameContinental') : null) || 'Continental'}
                         </button>
                         <button class="setup-tab-btn ${this.selectedGame === 'ajedrez' ? 'tab-active' : ''}" data-game="ajedrez" data-i18n="gameAjedrez">
-                            ${I18n.get('gameAjedrez')}
+                            ${(typeof I18n !== 'undefined' ? I18n.get('gameAjedrez') : null) || 'Ajedrez'}
                         </button>
                     </div>
 
                     <!-- 2. SUBMODES CAROUSEL / SELECTOR -->
                     <div class="setup-group">
-                        <label class="setup-label" data-i18n="submodesLabel">${I18n.get('submodesLabel')}</label>
+                        <label class="setup-label" data-i18n="submodesLabel">${(typeof I18n !== 'undefined' ? I18n.get('submodesLabel') : null) || 'SUB-MODO / VARIANTE'}</label>
                         <div class="submode-grid" id="submode-options-grid">
                             <!-- Dynamic submodes injected here -->
                         </div>
                     </div>
 
-                    <!-- 2.1 CAPTURA DEL CENTRO SPECIAL RULES CONFIG (Only visible if continental_captura_centro is selected) -->
+                    <!-- 2.1 CAPTURA DEL CENTRO SPECIAL RULES CONFIG -->
                     <div class="setup-group center-capture-config-panel glass-panel" id="center-capture-config" style="display: ${this.selectedSubmode === 'continental_captura_centro' ? 'block' : 'none'};">
                         <label class="setup-label" data-i18n="centerTurnsLabel">👑 Turnos en el Centro para Ganar</label>
                         <div class="center-turns-row">
@@ -113,7 +119,7 @@ const MatchSetupModal = {
 
                     <!-- 3. TIME CONTROL SELECTOR -->
                     <div class="setup-group">
-                        <label class="setup-label" data-i18n="timeControlLabel">${I18n.get('timeControlLabel')}</label>
+                        <label class="setup-label" data-i18n="timeControlLabel">${(typeof I18n !== 'undefined' ? I18n.get('timeControlLabel') : null) || 'CONTROL DE TIEMPO'}</label>
                         <div class="pill-grid" id="time-pill-grid">
                             <button class="pill-btn ${this.selectedTime === '1' ? 'pill-active' : ''}" data-time="1">⚡ 1 min</button>
                             <button class="pill-btn ${this.selectedTime === '3' ? 'pill-active' : ''}" data-time="3">🔥 3 min</button>
@@ -123,7 +129,7 @@ const MatchSetupModal = {
                             <button class="pill-btn ${this.selectedTime === 'custom' ? 'pill-active' : ''}" data-time="custom">⚙️ Custom</button>
                         </div>
                         
-                        <!-- CUSTOM TIME INPUTS (Minutos y Segundos) -->
+                        <!-- CUSTOM TIME INPUTS -->
                         <div id="custom-time-inputs" class="custom-time-container" style="display: ${this.selectedTime === 'custom' ? 'flex' : 'none'};">
                             <div class="custom-time-group">
                                 <label for="custom-min-input">Min</label>
@@ -139,87 +145,67 @@ const MatchSetupModal = {
 
                     <!-- 4. SIDE / COLOR SELECTOR -->
                     <div class="setup-group">
-                        <label class="setup-label" data-i18n="sideLabel">${I18n.get('sideLabel')}</label>
+                        <label class="setup-label" data-i18n="sideLabel">${(typeof I18n !== 'undefined' ? I18n.get('sideLabel') : null) || 'JUGAR CON'}</label>
                         <div class="side-selector">
                             <button class="side-btn ${this.selectedSide === 'w' ? 'side-active' : ''}" data-side="w" title="Blancas">
                                 <div class="side-circle side-white">♔</div>
-                                <span data-i18n="sideWhite">${I18n.get('sideWhite')}</span>
+                                <span data-i18n="sideWhite">${(typeof I18n !== 'undefined' ? I18n.get('sideWhite') : null) || 'Blancas'}</span>
                             </button>
                             <button class="side-btn ${this.selectedSide === 'random' ? 'side-active' : ''}" data-side="random" title="Aleatorio">
                                 <div class="side-circle side-random">☯</div>
-                                <span data-i18n="sideRandom">${I18n.get('sideRandom')}</span>
+                                <span data-i18n="sideRandom">${(typeof I18n !== 'undefined' ? I18n.get('sideRandom') : null) || 'Aleatorio'}</span>
                             </button>
                             <button class="side-btn ${this.selectedSide === 'b' ? 'side-active' : ''}" data-side="b" title="Negras">
                                 <div class="side-circle side-black">♚</div>
-                                <span data-i18n="sideBlack">${I18n.get('sideBlack')}</span>
+                                <span data-i18n="sideBlack">${(typeof I18n !== 'undefined' ? I18n.get('sideBlack') : null) || 'Negras'}</span>
                             </button>
                         </div>
                     </div>
 
                     <!-- 5. OPPONENT / MODE (VS BOT, PASS & PLAY, LAN) -->
                     <div class="setup-group">
-                        <label class="setup-label" data-i18n="modeLabel">${I18n.get('modeLabel')}</label>
+                        <label class="setup-label" data-i18n="modeLabel">${(typeof I18n !== 'undefined' ? I18n.get('modeLabel') : null) || 'MODO DE JUEGO'}</label>
                         <div class="mode-grid">
+                            <button class="mode-card ${this.selectedMode === 'pass' ? 'mode-active' : ''}" data-mode="pass">
+                                <div class="mode-icon">👥</div>
+                                <div>2 Jugadores (Local)</div>
+                            </button>
                             <button class="mode-card ${this.selectedMode === 'ai' ? 'mode-active' : ''}" data-mode="ai">
                                 <div class="mode-icon">🤖</div>
-                                <div data-i18n="modeAI">${I18n.get('modeAI')}</div>
-                            </button>
-                            <button class="mode-card ${this.selectedMode === 'pass' ? 'mode-active' : ''}" data-mode="pass">
-                                <div class="mode-icon">📱</div>
-                                <div data-i18n="modePass">${I18n.get('modePass')}</div>
+                                <div data-i18n="modeAI">${(typeof I18n !== 'undefined' ? I18n.get('modeAI') : null) || 'Contra IA / Bot'}</div>
                             </button>
                             <button class="mode-card ${this.selectedMode === 'lan' ? 'mode-active' : ''}" data-mode="lan">
                                 <div class="mode-icon">📡</div>
-                                <div data-i18n="modeLan">${I18n.get('modeLan')}</div>
+                                <div data-i18n="modeLan">${(typeof I18n !== 'undefined' ? I18n.get('modeLan') : null) || 'Multijugador LAN / Wi-Fi'}</div>
                             </button>
                         </div>
                     </div>
 
                     <!-- AI DIFFICULTY -->
                     <div class="setup-group" id="group-ai-diff" style="display: ${this.selectedMode === 'ai' ? 'block' : 'none'};">
-                        <label class="setup-label" data-i18n="aiDifficultyLabel">${I18n.get('aiDifficultyLabel')}</label>
+                        <label class="setup-label" data-i18n="aiDifficultyLabel">${(typeof I18n !== 'undefined' ? I18n.get('aiDifficultyLabel') : null) || 'Dificultad de la IA'}</label>
                         <div class="pill-grid" id="diff-pill-grid">
-                            <button class="pill-btn ${this.selectedDifficulty === 'novice' ? 'pill-active' : ''}" data-diff="novice" data-i18n="aiNovice">${I18n.get('aiNovice')}</button>
-                            <button class="pill-btn ${this.selectedDifficulty === 'intermediate' ? 'pill-active' : ''}" data-diff="intermediate" data-i18n="aiIntermediate">${I18n.get('aiIntermediate')}</button>
-                            <button class="pill-btn ${this.selectedDifficulty === 'master' ? 'pill-active' : ''}" data-diff="master" data-i18n="aiMaster">${I18n.get('aiMaster')}</button>
+                            <button class="pill-btn ${this.selectedDifficulty === 'novice' ? 'pill-active' : ''}" data-diff="novice" data-i18n="aiNovice">${(typeof I18n !== 'undefined' ? I18n.get('aiNovice') : null) || 'Novato'}</button>
+                            <button class="pill-btn ${this.selectedDifficulty === 'intermediate' ? 'pill-active' : ''}" data-diff="intermediate" data-i18n="aiIntermediate">${(typeof I18n !== 'undefined' ? I18n.get('aiIntermediate') : null) || 'Intermedio'}</button>
+                            <button class="pill-btn ${this.selectedDifficulty === 'master' ? 'pill-active' : ''}" data-diff="master" data-i18n="aiMaster">${(typeof I18n !== 'undefined' ? I18n.get('aiMaster') : null) || 'Maestro'}</button>
                         </div>
                     </div>
 
-                    <!-- LAN ROOM SETUP & LOBBY DISCOVERY -->
-                    <div class="setup-group lan-box glass-panel" id="group-lan-setup" style="display: ${this.selectedMode === 'lan' ? 'block' : 'none'};">
-                        <!-- Identidad / Nombre del Jugador -->
-                        <div style="margin-bottom: 12px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);">
-                            <label style="font-size: 0.82rem; color: #93c5fd; font-weight: bold; display: block; margin-bottom: 4px;">👤 Unirse como:</label>
-                            <div style="display: flex; gap: 6px;">
-                                <input type="text" id="lan-player-name-input" value="${playerName}" placeholder="Tu nombre en LAN..." maxlength="22" style="flex: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.5); color: #fff; font-weight: bold; font-size: 0.9rem;">
-                                <button id="btn-lan-randomize-name" class="action-btn secondary-btn small-btn" title="Generar otro nombre" style="padding: 0 10px; font-size: 1.1rem;">🎲</button>
-                            </div>
-                        </div>
-
-                        <!-- Acciones Principales LAN -->
-                        <div class="lan-controls" style="display: flex; flex-direction: column; gap: 8px;">
-                            <button id="btn-lan-host" class="action-btn primary-btn" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); width: 100%; padding: 10px; font-weight: bold; font-size: 0.95rem;">
+                    <!-- LAN REAL PEERJS CONTROLS -->
+                    <div class="setup-group lan-box glass-panel" id="group-lan-setup" style="display: ${this.selectedMode === 'lan' ? 'block' : 'none'}; padding: 12px; margin-top: 10px; border-radius: 8px; background: rgba(0,0,0,0.25);">
+                        <label class="setup-label" style="color: #60a5fa; font-weight: bold; margin-bottom: 8px; display: block;">📡 Conexión LAN / Wi-Fi (P2P)</label>
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                            <button id="btn-lan-host" class="action-btn primary-btn" style="flex: 1; padding: 10px; font-weight: bold;">
                                 📡 Crear Sala
                             </button>
-                            <div class="lan-input-group" style="display: flex; gap: 6px;">
-                                <input type="text" id="lan-room-input" placeholder="Código (ej: CW-8492)" maxlength="10" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: #fff; font-weight: bold; text-transform: uppercase;">
-                                <button id="btn-lan-join" class="action-btn secondary-btn" style="padding: 8px 14px; font-weight: bold;">
-                                    Entrar
-                                </button>
-                            </div>
                         </div>
-                        <div id="lan-status-msg" class="lan-status" style="font-size: 0.8rem; color: #cbd5e1; margin-top: 6px;"></div>
-
-                        <!-- Lista de Personas Esperando y Salas Disponibles -->
-                        <div style="margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <label style="font-size: 0.8rem; color: #fbbf24; font-weight: bold;">👥 Esperando partida en LAN:</label>
-                                <button id="btn-lan-refresh-list" style="background: none; border: none; color: #93c5fd; font-size: 0.8rem; cursor: pointer;">🔄 Actualizar</button>
-                            </div>
-                            <div id="lan-waiting-list" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
-                                <!-- Lista inyectada dinámicamente -->
-                            </div>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="lan-room-input" placeholder="Código de Sala (ej: CW-4892)" maxlength="10" style="flex: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: #fff; font-weight: bold; text-transform: uppercase;">
+                            <button id="btn-lan-join" class="action-btn secondary-btn" style="padding: 8px 14px; font-weight: bold;">
+                                Unirse
+                            </button>
                         </div>
+                        <div id="lan-status-msg" style="font-size: 0.85rem; color: #fbbf24; margin-top: 8px; font-weight: bold; text-align: center;"></div>
                     </div>
 
                     <!-- MODO AMISTOSO / SANDBOX -->
@@ -238,7 +224,7 @@ const MatchSetupModal = {
 
                     <!-- START MATCH BUTTON -->
                     <button id="btn-start-match" class="action-btn primary-btn large-btn margin-top-md" data-i18n="startGameBtn">
-                        ${I18n.get('startGameBtn')}
+                        ${(typeof I18n !== 'undefined' ? I18n.get('startGameBtn') : null) || '¡A Jugar!'}
                     </button>
                 </div>
             </div>
@@ -246,243 +232,7 @@ const MatchSetupModal = {
 
         this.container.innerHTML = modalHtml;
         this.renderSubmodes();
-        this.renderLanWaitingList();
         this.bindEvents();
-    },
-
-    renderLanWaitingList() {
-        const listEl = document.getElementById('lan-waiting-list');
-        if (!listEl || typeof NetworkManager === 'undefined') return;
-
-        const rooms = NetworkManager.getAvailableRooms();
-        const waitingPlayers = NetworkManager.getWaitingPlayers();
-
-        let html = '';
-
-        if (rooms.length === 0 && waitingPlayers.length === 0) {
-            html = `<div style="color: #9ca3af; font-size: 0.8rem; text-align: center; padding: 10px;">Buscando jugadores y salas en la red local...</div>`;
-        } else {
-            // Salas abiertas
-            rooms.forEach(room => {
-                html += `
-                    <div style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-weight: bold; font-size: 0.85rem; color: #60a5fa;">${room.name}</div>
-                            <div style="font-size: 0.72rem; color: #cbd5e1;">👤 ${room.hostName} · ⚔️ ${room.modeTitle}</div>
-                            <div style="font-size: 0.7rem; color: #a7f3d0;">Cupos: ${room.slots.current}/${room.slots.max}</div>
-                        </div>
-                        <button class="btn-request-join-room action-btn secondary-btn small-btn" data-room-code="${room.code}" style="padding: 4px 8px; font-size: 0.75rem; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #93c5fd;">
-                            📩 Pedir unirse
-                        </button>
-                    </div>
-                `;
-            });
-
-            // Personas en espera
-            waitingPlayers.forEach(p => {
-                html += `
-                    <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 5px 10px; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 0.8rem; color: #f3f4f6;">👤 <strong>${p.name}</strong></span>
-                        <span style="font-size: 0.72rem; color: #9ca3af;">${p.status}</span>
-                    </div>
-                `;
-            });
-        }
-
-        listEl.innerHTML = html;
-
-        // Bind Pedir unirse buttons
-        listEl.querySelectorAll('.btn-request-join-room').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const code = btn.dataset.roomCode;
-                this.requestJoinRoomFromList(code, btn);
-            });
-        });
-    },
-
-    requestJoinRoomFromList(roomCode, btnEl) {
-        if (typeof NetworkManager === 'undefined') return;
-
-        // Save current chosen player name first
-        const nameInput = document.getElementById('lan-player-name-input');
-        if (nameInput) NetworkManager.setPlayerName(nameInput.value);
-
-        const statusEl = document.getElementById('lan-status-msg');
-        if (btnEl) {
-            btnEl.disabled = true;
-            btnEl.textContent = '⏳ Solicitado...';
-        }
-        if (statusEl) statusEl.textContent = `Solicitud enviada a la sala ${roomCode}. Esperando aprobación del anfitrión...`;
-
-        NetworkManager.onMatchStart = (matchOptions) => {
-            this.close();
-            if (this.onStartMatch) this.onStartMatch(matchOptions);
-        };
-
-        NetworkManager.requestToJoinRoom(roomCode, (res) => {
-            if (statusEl) statusEl.textContent = `Solicitud enviada a ${roomCode}.`;
-        });
-    },
-
-    openLanLobbyModal(room) {
-        if (!room) return;
-
-        // Close setup modal
-        this.close();
-
-        // Create or select Lobby Modal
-        let lobbyModal = document.getElementById('modal-lan-lobby');
-        if (lobbyModal) lobbyModal.remove();
-
-        lobbyModal = document.createElement('div');
-        lobbyModal.id = 'modal-lan-lobby';
-        lobbyModal.className = 'modal-overlay modal-active';
-
-        const renderLobbyContent = () => {
-            const currentRoom = NetworkManager.currentRoom || room;
-            const otherRooms = NetworkManager.getAvailableRooms().filter(r => r.code !== currentRoom.code);
-
-            let requestsHtml = '';
-            if (!currentRoom.pendingRequests || currentRoom.pendingRequests.length === 0) {
-                requestsHtml = `<div style="color: #9ca3af; font-size: 0.8rem; font-style: italic; padding: 6px 0;">No hay solicitudes de unión pendientes...</div>`;
-            } else {
-                currentRoom.pendingRequests.forEach(req => {
-                    requestsHtml += `
-                        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px;">
-                            <div>
-                                <strong style="font-size: 0.85rem; color: #60a5fa;">${req.playerName}</strong>
-                                <span style="font-size: 0.72rem; color: #9ca3af; display: block;">Quiere entrar a la sala</span>
-                            </div>
-                            <div style="display: flex; gap: 4px;">
-                                <button class="btn-lobby-accept action-btn primary-btn small-btn" data-req-id="${req.requestId}" style="padding: 4px 8px; font-size: 0.75rem; background: #10b981;">✅ Aceptar</button>
-                                <button class="btn-lobby-reject action-btn secondary-btn small-btn" data-req-id="${req.requestId}" style="padding: 4px 8px; font-size: 0.75rem; background: rgba(239,68,68,0.2); border-color: #ef4444; color: #fca5a5;">❌ Rechazar</button>
-                            </div>
-                        </div>
-                    `;
-                });
-            }
-
-            let otherRoomsHtml = '';
-            if (otherRooms.length === 0) {
-                otherRoomsHtml = `<div style="color: #9ca3af; font-size: 0.8rem; font-style: italic;">No hay otras salas activas en este momento.</div>`;
-            } else {
-                otherRooms.forEach(or => {
-                    otherRoomsHtml += `
-                        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px;">
-                            <div>
-                                <div style="font-size: 0.82rem; font-weight: bold; color: #e2e8f0;">${or.name} (${or.code})</div>
-                                <div style="font-size: 0.72rem; color: #94a3b8;">⚔️ ${or.modeTitle} · Cupos: ${or.slots.current}/${or.slots.max}</div>
-                            </div>
-                            <button class="btn-lobby-ask-join action-btn secondary-btn small-btn" data-room-code="${or.code}" style="font-size: 0.75rem; padding: 4px 8px;">📩 Pedir unirse</button>
-                        </div>
-                    `;
-                });
-            }
-
-            lobbyModal.innerHTML = `
-                <div class="modal-card glass-panel animate-pop-in" style="max-width: 460px; padding: 20px; max-height: 88vh; overflow-y: auto;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 8px;">
-                        <div>
-                            <h2 style="font-size: 1.25rem; color: #ffd700; margin: 0;">📡 Sala LAN</h2>
-                            <span style="font-size: 0.8rem; color: #94a3b8;">Código de Sala: <strong style="color: #60a5fa; font-size: 1.1rem; letter-spacing: 1px;">${currentRoom.code}</strong></span>
-                        </div>
-                        <span class="badge" id="lobby-slots-badge" style="background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; color: #a7f3d0; font-weight: bold; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem;">
-                            Cupos: ${currentRoom.slots.current}/${currentRoom.slots.max}
-                        </span>
-                    </div>
-
-                    <!-- Nombre de la Sala (Editable) -->
-                    <div class="setup-group">
-                        <label class="setup-label" style="color: #93c5fd; font-size: 0.8rem;">🏷️ Nombre de la Sala (editable):</label>
-                        <input type="text" id="lobby-room-name-input" value="${currentRoom.name}" maxlength="30" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.5); color: #fff; font-weight: bold; font-size: 0.95rem; margin-top: 4px;">
-                    </div>
-
-                    <!-- Lista de Jugadores en Sala (Cupos) -->
-                    <div class="setup-group" style="background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                        <label class="setup-label" style="font-size: 0.75rem; color: #cbd5e1; margin-bottom: 4px; display: block;">Jugadores en la sala:</label>
-                        <div style="font-size: 0.85rem; color: #fff; display: flex; flex-direction: column; gap: 4px;">
-                            <div>👑 <strong>${currentRoom.players[0]?.name || currentRoom.hostName}</strong> (Anfitrión - Blancas)</div>
-                            <div>${currentRoom.players[1] ? `⚔️ <strong>${currentRoom.players[1].name}</strong> (Invitado - Negras)` : `<span style="color: #9ca3af; font-style: italic;">⏳ Esperando jugador para completar cupo...</span>`}</div>
-                        </div>
-                    </div>
-
-                    <!-- Solicitudes para Unirse -->
-                    <div class="setup-group" style="margin-top: 14px;">
-                        <label class="setup-label" style="color: #fbbf24; font-size: 0.8rem; display: block; margin-bottom: 6px;">👥 Gente intentando unirse a la sala:</label>
-                        <div id="lobby-requests-container">
-                            ${requestsHtml}
-                        </div>
-                    </div>
-
-                    <!-- Otras Salas Disponibles -->
-                    <div class="setup-group" style="margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                        <label class="setup-label" style="color: #60a5fa; font-size: 0.8rem; display: block; margin-bottom: 6px;">🌐 Otras salas disponibles en la red:</label>
-                        <div id="lobby-other-rooms-container">
-                            ${otherRoomsHtml}
-                        </div>
-                    </div>
-
-                    <!-- Botón Volver al Menú -->
-                    <button id="btn-lobby-back-menu" class="action-btn secondary-btn" style="width: 100%; margin-top: 15px; padding: 10px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5;">
-                        ⬅️ Volver al Menú
-                    </button>
-                </div>
-            `;
-
-            // Bind Lobby Inputs & Buttons
-            const nameInput = lobbyModal.querySelector('#lobby-room-name-input');
-            nameInput?.addEventListener('input', (e) => {
-                NetworkManager.updateRoomName(e.target.value);
-            });
-
-            lobbyModal.querySelectorAll('.btn-lobby-accept').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const reqId = btn.dataset.reqId;
-                    NetworkManager.acceptJoinRequest(reqId);
-                });
-            });
-
-            lobbyModal.querySelectorAll('.btn-lobby-reject').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const reqId = btn.dataset.reqId;
-                    NetworkManager.rejectJoinRequest(reqId);
-                });
-            });
-
-            lobbyModal.querySelectorAll('.btn-lobby-ask-join').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const code = btn.dataset.roomCode;
-                    btn.disabled = true;
-                    btn.textContent = '⏳ Solicitado';
-                    this.requestJoinRoomFromList(code, btn);
-                });
-            });
-
-            lobbyModal.querySelector('#btn-lobby-back-menu')?.addEventListener('click', () => {
-                NetworkManager.leaveRoom();
-                lobbyModal.remove();
-                if (typeof MenuController !== 'undefined') {
-                    MenuController.switchView('main-menu');
-                }
-            });
-        };
-
-        renderLobbyContent();
-        document.body.appendChild(lobbyModal);
-
-        // Lobby auto-refresh handler
-        NetworkManager.onLobbyUpdated = () => {
-            renderLobbyContent();
-        };
-
-        // When full cupos filled, start match!
-        NetworkManager.onMatchStart = (matchOptions) => {
-            lobbyModal.remove();
-            if (this.onStartMatch) {
-                this.onStartMatch(matchOptions);
-            }
-        };
     },
 
     renderSubmodes() {
@@ -490,21 +240,26 @@ const MatchSetupModal = {
         if (!grid) return;
 
         const submodes = this.getSubmodesForGame(this.selectedGame);
-        grid.innerHTML = submodes.map(sub => `
-            <div class="submode-card ${this.selectedSubmode === sub.id ? 'submode-active' : ''}" data-submode="${sub.id}">
-                <div class="submode-icon">${sub.icon}</div>
-                <div class="submode-info">
-                    <h4 class="submode-title" data-i18n="${sub.titleKey}">${I18n.get(sub.titleKey)}</h4>
-                    <p class="submode-desc" data-i18n="${sub.descKey}">${I18n.get(sub.descKey)}</p>
+        grid.innerHTML = submodes.map(sm => {
+            const isSelected = this.selectedSubmode === sm.id;
+            const title = (typeof I18n !== 'undefined' ? I18n.get(sm.titleKey) : null) || sm.id;
+            const desc = (typeof I18n !== 'undefined' ? I18n.get(sm.descKey) : null) || '';
+            return `
+                <div class="submode-card ${isSelected ? 'submode-active' : ''}" data-submode="${sm.id}">
+                    <div class="submode-icon">${sm.icon}</div>
+                    <div class="submode-info">
+                        <div class="submode-title">${title}</div>
+                        <div class="submode-desc">${desc}</div>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
-        grid.querySelectorAll('.submode-card').forEach(card => {
+        grid.querySelectorAll('[data-submode]').forEach(card => {
             card.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.selectedSubmode = card.dataset.submode;
-                grid.querySelectorAll('.submode-card').forEach(c => c.classList.remove('submode-active'));
+                grid.querySelectorAll('[data-submode]').forEach(c => c.classList.remove('submode-active'));
                 card.classList.add('submode-active');
 
                 const centerPanel = document.getElementById('center-capture-config');
@@ -519,18 +274,24 @@ const MatchSetupModal = {
         const modal = document.getElementById('match-setup-modal');
         if (!modal) return;
 
-        // Close Button
+        // Close button (Volver al menú)
         document.getElementById('btn-close-setup')?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.close();
         });
 
-        // Game Tabs
+        // Game Tab Selection
         modal.querySelectorAll('[data-game]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.selectedGame = btn.dataset.game;
-                this.selectedSubmode = this.selectedGame === 'continental' ? 'continental_normal' : 'ajedrez_normal';
+                const newGame = btn.dataset.game;
+                this.selectedGame = newGame;
+
+                if (newGame === 'continental' && !this.selectedSubmode.startsWith('continental_')) {
+                    this.selectedSubmode = 'continental_normal';
+                } else if (newGame === 'ajedrez' && !this.selectedSubmode.startsWith('ajedrez_')) {
+                    this.selectedSubmode = 'ajedrez_normal';
+                }
 
                 modal.querySelectorAll('[data-game]').forEach(b => b.classList.remove('tab-active'));
                 btn.classList.add('tab-active');
@@ -539,15 +300,7 @@ const MatchSetupModal = {
             });
         });
 
-        // Center Turns Select Change
-        document.getElementById('modal-center-turns')?.addEventListener('change', (e) => {
-            const customInput = document.getElementById('custom-center-turns-input');
-            if (customInput) {
-                customInput.style.display = e.target.value === 'custom' ? 'inline-block' : 'none';
-            }
-        });
-
-        // Time Pill Clicks
+        // Time Control Pill Clicks
         modal.querySelectorAll('[data-time]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -555,14 +308,25 @@ const MatchSetupModal = {
                 modal.querySelectorAll('[data-time]').forEach(b => b.classList.remove('pill-active'));
                 btn.classList.add('pill-active');
 
-                const customInputs = document.getElementById('custom-time-inputs');
-                if (customInputs) {
-                    customInputs.style.display = this.selectedTime === 'custom' ? 'flex' : 'none';
+                const customBox = document.getElementById('custom-time-inputs');
+                if (customBox) {
+                    customBox.style.display = this.selectedTime === 'custom' ? 'flex' : 'none';
                 }
             });
         });
 
-        // Side Clicks
+        // Center Turns Dropdown change
+        const centerTurnsSelect = document.getElementById('modal-center-turns');
+        if (centerTurnsSelect) {
+            centerTurnsSelect.addEventListener('change', (e) => {
+                const customTurnsBox = document.getElementById('custom-center-turns-input');
+                if (customTurnsBox) {
+                    customTurnsBox.style.display = e.target.value === 'custom' ? 'inline-block' : 'none';
+                }
+            });
+        }
+
+        // Side Selection Clicks
         modal.querySelectorAll('[data-side]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -597,61 +361,31 @@ const MatchSetupModal = {
             });
         });
 
-        // LAN: Randomize Player Name
-        document.getElementById('btn-lan-randomize-name')?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (typeof NetworkManager !== 'undefined') {
-                const newName = NetworkManager.generateRandomPlayerName();
-                NetworkManager.setPlayerName(newName);
-                const input = document.getElementById('lan-player-name-input');
-                if (input) input.value = newName;
-            }
-        });
-
-        // LAN: Player Name Input Edit
-        document.getElementById('lan-player-name-input')?.addEventListener('input', (e) => {
-            if (typeof NetworkManager !== 'undefined') {
-                NetworkManager.setPlayerName(e.target.value);
-            }
-        });
-
-        // LAN: Refresh Waiting List
-        document.getElementById('btn-lan-refresh-list')?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.renderLanWaitingList();
-        });
-
-        // LAN: Host Room Button -> Opens Lobby Modal
+        // REAL PeerJS Host Button
         document.getElementById('btn-lan-host')?.addEventListener('click', (e) => {
             e.stopPropagation();
+            const statusEl = document.getElementById('lan-status-msg');
+            if (statusEl) statusEl.textContent = 'Creando sala LAN en vivo...';
+
             if (typeof NetworkManager !== 'undefined') {
-                const nameInput = document.getElementById('lan-player-name-input');
-                if (nameInput) NetworkManager.setPlayerName(nameInput.value);
+                NetworkManager.hostRoom(
+                    (roomCode) => {
+                        if (statusEl) statusEl.textContent = `Sala Creada: ${roomCode} (Esperando rival...)`;
+                    },
+                    (err) => {
+                        if (statusEl) statusEl.textContent = `Error al crear sala: ${err}`;
+                    }
+                );
 
-                let actualTimeSec = 0;
-                let actualTimeMin = 0;
-                if (this.selectedTime === 'custom') {
-                    const cMin = parseInt(document.getElementById('custom-min-input')?.value || '3', 10);
-                    const cSec = parseInt(document.getElementById('custom-sec-input')?.value || '0', 10);
-                    actualTimeSec = Math.max(0, cMin * 60 + cSec);
-                    actualTimeMin = Math.floor(actualTimeSec / 60);
-                } else {
-                    actualTimeMin = parseInt(this.selectedTime, 10) || 0;
-                    actualTimeSec = actualTimeMin * 60;
-                }
-
-                const room = NetworkManager.hostRoom({
-                    gameType: this.selectedGame,
-                    submode: this.selectedSubmode,
-                    timeMinutes: actualTimeMin,
-                    timeSeconds: actualTimeSec
-                });
-
-                this.openLanLobbyModal(room);
+                NetworkManager.onStatusChange = (status) => {
+                    if (status === 'connected' && statusEl) {
+                        statusEl.textContent = '¡Rival conectado! Presiona ¡A Jugar! para iniciar.';
+                    }
+                };
             }
         });
 
-        // LAN: Direct Code Join Button -> Starts Instantly!
+        // REAL PeerJS Join Button
         document.getElementById('btn-lan-join')?.addEventListener('click', (e) => {
             e.stopPropagation();
             const input = document.getElementById('lan-room-input');
@@ -659,26 +393,18 @@ const MatchSetupModal = {
             const statusEl = document.getElementById('lan-status-msg');
 
             if (!code) {
-                if (statusEl) statusEl.textContent = 'Ingresa un código de sala válido.';
+                if (statusEl) statusEl.textContent = 'Ingresa un código válido (ej: CW-4892)';
                 return;
             }
 
-            const nameInput = document.getElementById('lan-player-name-input');
-            if (nameInput && typeof NetworkManager !== 'undefined') {
-                NetworkManager.setPlayerName(nameInput.value);
-            }
-
-            if (statusEl) statusEl.textContent = 'Entrando a sala ' + code + '...';
+            if (statusEl) statusEl.textContent = `Conectando a ${code}...`;
 
             if (typeof NetworkManager !== 'undefined') {
-                NetworkManager.joinByCode(code, (res) => {
-                    if (res && res.success) {
-                        this.close();
-                        if (this.onStartMatch) {
-                            this.onStartMatch(res.matchOptions);
-                        }
+                NetworkManager.joinRoom(code, (success, err) => {
+                    if (success) {
+                        if (statusEl) statusEl.textContent = '¡Conectado exitosamente al anfitrión!';
                     } else {
-                        if (statusEl) statusEl.textContent = res?.error || 'No se pudo conectar a la sala.';
+                        if (statusEl) statusEl.textContent = `Error: ${err || 'No se pudo conectar'}`;
                     }
                 });
             }
@@ -688,13 +414,6 @@ const MatchSetupModal = {
         document.getElementById('btn-start-match')?.addEventListener('click', (e) => {
             e.stopPropagation();
 
-            // If in LAN mode, guide user to host or join
-            if (this.selectedMode === 'lan') {
-                document.getElementById('btn-lan-host')?.click();
-                return;
-            }
-
-            // Calculate Custom Time (if selected)
             let actualTimeSec = 0;
             let actualTimeMin = 0;
             if (this.selectedTime === 'custom') {
@@ -707,7 +426,6 @@ const MatchSetupModal = {
                 actualTimeSec = actualTimeMin * 60;
             }
 
-            // Save & Pass Center Capture Config
             let modalCenterTurns = document.getElementById('modal-center-turns')?.value || localStorage.getItem('continental_center_turns') || '3';
             if (modalCenterTurns === 'custom') {
                 const customInput = document.getElementById('custom-center-turns-input');
@@ -715,39 +433,39 @@ const MatchSetupModal = {
             }
             const modalCenterConsecutive = document.getElementById('modal-center-consecutive') ? (document.getElementById('modal-center-consecutive').value === 'true') : (localStorage.getItem('continental_center_consecutive') !== 'false');
 
-            const isSandbox = document.getElementById('modal-sandbox-toggle')?.checked || false;
-
-            // Save custom times for next time
-            if (this.selectedTime === 'custom') {
-                const cMin = parseInt(document.getElementById('custom-min-input')?.value || '3', 10);
-                const cSec = parseInt(document.getElementById('custom-sec-input')?.value || '0', 10);
-                localStorage.setItem('continental_custom_time_min', cMin);
-                localStorage.setItem('continental_custom_time_sec', cSec);
-            }
             localStorage.setItem('continental_center_turns', modalCenterTurns);
             localStorage.setItem('continental_center_consecutive', modalCenterConsecutive);
 
+            let actualSide = this.selectedSide;
+            if (actualSide === 'random') {
+                actualSide = Math.random() > 0.5 ? 'w' : 'b';
+            }
+
+            const matchOptions = {
+                gameType: this.selectedGame,
+                submode: this.selectedSubmode,
+                timeMinutes: actualTimeMin,
+                timeSeconds: actualTimeSec,
+                centerTurns: parseInt(modalCenterTurns, 10),
+                centerConsecutive: modalCenterConsecutive,
+                playerSide: actualSide,
+                mode: this.selectedMode,
+                difficulty: this.selectedDifficulty
+            };
+
+            // If LAN mode and Host, transmit start match options to Guest
+            if (this.selectedMode === 'lan' && typeof NetworkManager !== 'undefined') {
+                if (NetworkManager.isHost && NetworkManager.conn && NetworkManager.conn.open) {
+                    // Send inverted color options to guest
+                    const guestOptions = { ...matchOptions, playerSide: actualSide === 'w' ? 'b' : 'w' };
+                    NetworkManager.sendMatchStart(guestOptions);
+                }
+            }
+
             this.close();
             if (this.onStartMatch) {
-                let actualSide = this.selectedSide;
-                if (actualSide === 'random') {
-                    actualSide = Math.random() > 0.5 ? 'w' : 'b';
-                }
-                this.onStartMatch({
-                    gameType: this.selectedGame,
-                    submode: this.selectedSubmode,
-                    timeMinutes: actualTimeMin,
-                    timeSeconds: actualTimeSec,
-                    centerTurns: parseInt(modalCenterTurns, 10),
-                    centerConsecutive: modalCenterConsecutive,
-                    playerSide: actualSide,
-                    mode: this.selectedMode,
-                    difficulty: this.selectedDifficulty,
-                    sandboxMode: isSandbox
-                });
+                this.onStartMatch(matchOptions);
             }
         });
     }
 };
-
-window.MatchSetupModal = MatchSetupModal;
