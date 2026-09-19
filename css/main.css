@@ -425,11 +425,28 @@ html, body {
 }
 
 /* Game Selection Grid */
-.game-selector-grid {
+.game-selector-grid, .game-cards-grid {
     display: flex;
     flex-direction: column;
     gap: 8px;
     margin-top: 6px;
+}
+
+.lan-room-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    transition: all 0.2s ease;
+}
+
+.lan-room-item:hover {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: var(--accent-primary);
 }
 
 .game-card {

@@ -81,13 +81,45 @@ class GameController {
         this.whiteTime = timeSec;
         this.blackTime = timeSec;
 
-        this.boardRenderer.flipped = (options.playerSide === 'b' && options.mode === 'ai');
+        this.boardRenderer.flipped = (options.playerSide === 'b');
 
         if (options.mode === 'lan' && typeof NetworkManager !== 'undefined') {
             NetworkManager.onMoveReceived = (moveData) => {
                 if (moveData && moveData.fromR !== undefined) {
-                    this.executeUserMove(moveData.fromR, moveData.fromC, moveData.toR, moveData.toC, null);
+                    this.performRegularMove(moveData.fromR, moveData.fromC, moveData.toR, moveData.toC, moveData.promotionType);
                 }
+            };
+
+            NetworkManager.onDraftPickReceived = (data) => {
+                if (this.isDrafting && this.draftSteps && this.draftSteps[this.draftStep]) {
+                    const step = this.draftSteps[this.draftStep];
+                    step.apply(data.chosenType, this.boardEngine);
+                    AudioManager.playMove();
+                    this.boardRenderer.render();
+                    this.closeDraftWaitingModal();
+                    this.draftStep++;
+                    this.processNextDraftStep();
+                }
+            };
+
+            NetworkManager.onDraftVerifyReceived = (data) => {
+                const mySignature = this.boardEngine.getBoardSignature();
+                if (mySignature !== data.signature) {
+                    console.error('[LAN SYNC ERROR] Board signatures mismatch!', mySignature, data.signature);
+                    alert('❌ Error crítico de sincronización: Los tableros no coinciden entre ambos dispositivos. La partida se cerrará.');
+                    this.stopClock();
+                    if (typeof MenuController !== 'undefined') {
+                        MenuController.showView('view-main-menu');
+                    }
+                    NetworkManager.disconnect();
+                } else {
+                    console.log('[LAN SYNC SUCCESS] Board signatures verified perfectly!');
+                    this.onDraftVerificationSuccess();
+                }
+            };
+
+            NetworkManager.onConnectionLost = () => {
+                this.showConnectionLostModal();
             };
         }
 
@@ -139,6 +171,16 @@ class GameController {
 
         if (this.matchOptions.mode === 'ai') {
             if (this.rulesEngine.activeColor !== this.matchOptions.playerSide) {
+                return;
+            }
+        }
+
+        if (this.matchOptions.mode === 'lan') {
+            if (this.rulesEngine.activeColor !== this.matchOptions.playerSide) {
+                const clickedPiece = this.boardEngine.getPiece(r, c);
+                if (clickedPiece) {
+                    this.showEnemyPieceInfo(clickedPiece, r, c);
+                }
                 return;
             }
         }
@@ -247,42 +289,17 @@ class GameController {
     processNextDraftStep() {
         if (this.draftStep >= this.draftSteps.length) {
             this.isDrafting = false;
+            this.closeDraftWaitingModal();
 
-            if (this.matchOptions?.submode === 'continental_captura_centro') {
-                const wCom = this.boardEngine.getPiece(6, 3);
-                if (wCom && wCom.type === 'c_rey') this.reinforcementsBank.w += 4;
-                
-                const bCom = this.boardEngine.getPiece(0, 3);
-                if (bCom && bCom.type === 'c_rey') this.reinforcementsBank.b += 4;
-            }
-
-            this.boardRenderer.render();
-            this.renderHUD();
-            AudioManager.playVictory();
-
-            if (this.matchOptions?.submode === 'continental_gran_ejercito') {
-                this.openPlacementModal('w', 4, (remW) => {
-                    this.reinforcementsBank.w += remW;
-                    this.openPlacementModal('b', 4, (remB) => {
-                        this.reinforcementsBank.b += remB;
-                        this.boardRenderer.render();
-                        this.renderHUD();
-                        if (this.whiteTime > 0) this.startClock();
-                        if (this.matchOptions.mode === 'ai' && this.matchOptions.playerSide === 'b' && this.rulesEngine.activeColor === 'w') {
-                            setTimeout(() => this.triggerAIMove(), 1000);
-                        }
-                    });
-                });
+            // If in LAN mode, perform board integrity verification before starting match!
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                const mySignature = this.boardEngine.getBoardSignature();
+                NetworkManager.sendDraftVerify(mySignature);
+                this.showDraftVerifyingModal();
                 return;
             }
 
-            if (this.whiteTime > 0) this.startClock();
-            
-            this.checkPendingReinforcements(() => {
-                if (this.matchOptions.mode === 'ai' && this.matchOptions.playerSide === 'b' && this.rulesEngine.activeColor === 'w') {
-                    setTimeout(() => this.triggerAIMove(), 1000);
-                }
-            });
+            this.finalizeDraftAndStartGame();
             return;
         }
 
@@ -301,12 +318,148 @@ class GameController {
             return;
         }
 
+        // LAN Mode: Only the player of current side can pick! Opponent sees waiting modal.
+        if (this.matchOptions?.mode === 'lan') {
+            const isMyTurn = (step.side === this.matchOptions.playerSide);
+            if (!isMyTurn) {
+                this.showDraftWaitingModal(step);
+                return;
+            }
+        }
+
+        this.closeDraftWaitingModal();
         this.openDraftChoiceModal(step, (chosenType) => {
             step.apply(chosenType, this.boardEngine);
             AudioManager.playMove();
             this.boardRenderer.render();
+
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendDraftPick(this.draftStep, chosenType);
+            }
+
             this.draftStep++;
             this.processNextDraftStep();
+        });
+    }
+
+    showDraftWaitingModal(step) {
+        this.closeDraftWaitingModal();
+        const sideName = step.side === 'w' ? 'Blancas ⚪' : 'Negras ⚫';
+        const modal = document.createElement('div');
+        modal.id = 'modal-draft-waiting';
+        modal.className = 'modal-overlay modal-active';
+        modal.style.zIndex = '9998';
+        modal.innerHTML = `
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(16, 42, 32, 0.95); border: 2px solid rgba(52, 211, 153, 0.4); border-radius: 14px;">
+                <div style="font-size: 2.2rem; margin-bottom: 10px;">⏳</div>
+                <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.15rem; margin-bottom: 6px;">Esperando al Rival</h3>
+                <p style="font-size: 0.9rem; color: #a7f3d0; margin-bottom: 14px;">
+                    El rival está eligiendo su pieza para <strong>${sideName}</strong>...
+                </p>
+                <div class="loading-spinner" style="margin: 0 auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #10b981; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    closeDraftWaitingModal() {
+        const modal = document.getElementById('modal-draft-waiting');
+        if (modal) modal.remove();
+    }
+
+    showDraftVerifyingModal() {
+        const existing = document.getElementById('modal-draft-verifying');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'modal-draft-verifying';
+        modal.className = 'modal-overlay modal-active';
+        modal.style.zIndex = '9998';
+        modal.innerHTML = `
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(16, 42, 32, 0.95); border: 2px solid rgba(52, 211, 153, 0.4); border-radius: 14px;">
+                <div style="font-size: 2.2rem; margin-bottom: 10px;">🔍</div>
+                <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.15rem; margin-bottom: 6px;">Sincronizando Tableros</h3>
+                <p style="font-size: 0.9rem; color: #a7f3d0; margin-bottom: 14px;">
+                    Verificando que la configuración de piezas sea idéntica en ambos celulares...
+                </p>
+                <div class="loading-spinner" style="margin: 0 auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #10b981; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    onDraftVerificationSuccess() {
+        const modal = document.getElementById('modal-draft-verifying');
+        if (modal) modal.remove();
+        this.finalizeDraftAndStartGame();
+    }
+
+    finalizeDraftAndStartGame() {
+        if (this.matchOptions?.submode === 'continental_captura_centro') {
+            const wCom = this.boardEngine.getPiece(6, 3);
+            if (wCom && wCom.type === 'c_rey') this.reinforcementsBank.w += 4;
+            
+            const bCom = this.boardEngine.getPiece(0, 3);
+            if (bCom && bCom.type === 'c_rey') this.reinforcementsBank.b += 4;
+        }
+
+        this.boardRenderer.render();
+        this.renderHUD();
+        AudioManager.playVictory();
+
+        if (this.matchOptions?.submode === 'continental_gran_ejercito') {
+            this.openPlacementModal('w', 4, (remW) => {
+                this.reinforcementsBank.w += remW;
+                this.openPlacementModal('b', 4, (remB) => {
+                    this.reinforcementsBank.b += remB;
+                    this.boardRenderer.render();
+                    this.renderHUD();
+                    if (this.whiteTime > 0) this.startClock();
+                    if (this.matchOptions.mode === 'ai' && this.matchOptions.playerSide === 'b' && this.rulesEngine.activeColor === 'w') {
+                        setTimeout(() => this.triggerAIMove(), 1000);
+                    }
+                });
+            });
+            return;
+        }
+
+        if (this.whiteTime > 0) this.startClock();
+        
+        this.checkPendingReinforcements(() => {
+            if (this.matchOptions.mode === 'ai' && this.matchOptions.playerSide === 'b' && this.rulesEngine.activeColor === 'w') {
+                setTimeout(() => this.triggerAIMove(), 1000);
+            }
+        });
+    }
+
+    showConnectionLostModal() {
+        const existing = document.getElementById('modal-conn-lost');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'modal-conn-lost';
+        modal.className = 'modal-overlay modal-active';
+        modal.style.zIndex = '9999';
+        modal.innerHTML = `
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(30, 20, 20, 0.95); border: 2px solid #ef4444; border-radius: 14px;">
+                <div style="font-size: 2.2rem; margin-bottom: 10px;">⚠️</div>
+                <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.2rem; margin-bottom: 6px;">Conexión Perdida</h3>
+                <p style="font-size: 0.9rem; color: #fca5a5; margin-bottom: 16px;">
+                    Se ha perdido la conexión en tiempo real con el rival.
+                </p>
+                <button id="btn-conn-lost-menu" class="action-btn primary-btn" style="width: 100%; background: #ef4444;">
+                    Volver al Menú Principal
+                </button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#btn-conn-lost-menu')?.addEventListener('click', () => {
+            modal.remove();
+            this.stopClock();
+            if (typeof MenuController !== 'undefined') {
+                MenuController.showView('view-main-menu');
+            }
         });
     }
 

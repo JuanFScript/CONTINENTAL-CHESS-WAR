@@ -67,6 +67,13 @@ class BoardEngine {
     }
 
     /**
+     * Get a compact deterministic signature of the board layout for network sync verification
+     */
+    getBoardSignature() {
+        return this.grid.map(row => row.map(cell => cell ? `${cell.type}:${cell.color}:${cell.facing || 0}` : '.').join(',')).join('|');
+    }
+
+    /**
      * Setup Continental Board for Turn-by-Turn Draft
      * Starts with an empty board (7x7) ready for sequential piece drafting.
      */
