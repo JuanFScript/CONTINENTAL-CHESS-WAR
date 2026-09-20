@@ -121,6 +121,13 @@ class GameController {
             NetworkManager.onConnectionLost = () => {
                 this.showConnectionLostModal();
             };
+
+            NetworkManager.onSurrenderReceived = (data) => {
+                const surrendereeName = (data && data.playerName) ? data.playerName : 'El rival';
+                this.stopClock();
+                AudioManager.playVictory();
+                this.endMatch(`🏆 ¡${surrendereeName} se ha rendido! ¡Ganaste la partida!`);
+            };
         }
 
         this.stopClock();
@@ -2193,8 +2200,12 @@ class GameController {
             });
 
             document.getElementById('btn-game-resign')?.addEventListener('click', () => {
-                const winner = this.rulesEngine.activeColor === 'w' ? I18n.get('blackPlayer') : I18n.get('whitePlayer');
-                this.endMatch(`${I18n.get('winText')} ${winner} (${I18n.get('btnResign')})`);
+                if (this.matchOptions?.mode === 'lan') {
+                    this.showLanConfirmExitModal('resign');
+                } else {
+                    const winner = this.rulesEngine.activeColor === 'w' ? I18n.get('blackPlayer') : I18n.get('whitePlayer');
+                    this.endMatch(`${I18n.get('winText')} ${winner} (${I18n.get('btnResign')})`);
+                }
             });
 
             document.getElementById('btn-game-draw')?.addEventListener('click', () => {
@@ -2207,10 +2218,77 @@ class GameController {
         }
 
         document.getElementById('btn-game-exit')?.addEventListener('click', () => {
+            if (this.matchOptions?.mode === 'lan' && !this.isGameOver) {
+                this.showLanConfirmExitModal('menu');
+            } else {
+                this.stopClock();
+                document.getElementById('game-over-inspector-bar')?.remove();
+                document.getElementById('game-over-modal')?.remove();
+                MenuController.switchView('main-menu');
+            }
+        });
+    }
+
+    showLanConfirmExitModal(actionType) {
+        const existing = document.getElementById('modal-lan-confirm-exit');
+        if (existing) existing.remove();
+
+        const isResign = actionType === 'resign';
+        const titleText = isResign ? '⚠️ ¿Rendirse y Abandonar Partida?' : '⚠️ ¿Salir al Menú Principal?';
+        const bodyText = isResign
+            ? 'Estás jugando una partida multijugador LAN. Si te rindes, la partida se dará por terminada y el rival ganará.'
+            : 'Estás en una partida multijugador LAN activa. Si vuelves al menú principal, abandonarás la partida y el rival ganará.';
+        const confirmBtnText = isResign ? '🏳️ Sí, rendirme' : '🚪 Sí, salir al menú';
+
+        const modal = document.createElement('div');
+        modal.id = 'modal-lan-confirm-exit';
+        modal.className = 'modal-overlay modal-active';
+        modal.style.zIndex = '9999';
+        modal.innerHTML = `
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 22px; max-width: 360px; background: rgba(26, 15, 15, 0.95); border: 2px solid #ef4444; border-radius: 14px; box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);">
+                <div style="font-size: 2.2rem; margin-bottom: 8px;">⚠️</div>
+                <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.15rem; margin-bottom: 8px;">${titleText}</h3>
+                <p style="font-size: 0.88rem; color: #fca5a5; line-height: 1.4; margin-bottom: 16px;">
+                    ${bodyText}
+                </p>
+                <div style="display: flex; gap: 10px;">
+                    <button id="btn-cancel-exit-lan" class="action-btn secondary-btn" style="flex: 1; padding: 10px; font-weight: bold;">
+                        Cancelar
+                    </button>
+                    <button id="btn-confirm-exit-lan" class="action-btn primary-btn" style="flex: 1; padding: 10px; font-weight: bold; background: #ef4444; border-color: #dc2626; color: #fff;">
+                        ${confirmBtnText}
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        modal.querySelector('#btn-cancel-exit-lan')?.addEventListener('click', () => {
+            modal.remove();
+        });
+
+        modal.querySelector('#btn-confirm-exit-lan')?.addEventListener('click', () => {
+            modal.remove();
+            
+            if (typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendSurrender();
+                setTimeout(() => {
+                    NetworkManager.disconnect();
+                }, 300);
+            }
+
             this.stopClock();
             document.getElementById('game-over-inspector-bar')?.remove();
             document.getElementById('game-over-modal')?.remove();
-            MenuController.switchView('main-menu');
+
+            if (isResign) {
+                this.endMatch('Te has rendido de la partida multijugador.');
+            } else {
+                if (typeof MenuController !== 'undefined') {
+                    MenuController.switchView('main-menu');
+                }
+            }
         });
     }
 

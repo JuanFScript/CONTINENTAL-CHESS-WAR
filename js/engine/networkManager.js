@@ -368,6 +368,12 @@ const NetworkManager = {
         }
     },
 
+    sendSurrender(playerName) {
+        if (this.conn && this.conn.open) {
+            this.conn.send({ type: 'SURRENDER', playerName: playerName || this.playerName });
+        }
+    },
+
     disconnect() {
         this.stopHeartbeat();
         if (this.hostBroadcastInterval) {
