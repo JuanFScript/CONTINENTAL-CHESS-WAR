@@ -12,6 +12,7 @@ const OptionsTab = {
         const currentAutoRotateBlack = localStorage.getItem('continental_auto_rotate_black') !== 'false';
         const currentSandboxMode = localStorage.getItem('continental_sandbox_mode') === 'true';
         const currentTestMode = localStorage.getItem('continental_test_mode') === 'true';
+        const currentDebugMode = localStorage.getItem('continental_debug_mode') === 'true';
 
         const html = `
             <div class="options-container animate-fade-in">
@@ -159,6 +160,22 @@ const OptionsTab = {
                                 <option value="dark" ${currentTheme === 'dark' ? 'selected' : ''} data-i18n="themeDark">${I18n.get('themeDark')}</option>
                                 <option value="crystal" ${currentTheme === 'crystal' ? 'selected' : ''}>Cuarzo & Amatista</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- MODO DEBUG / CONSOLA INTERNA -->
+                    <div class="setting-row">
+                        <div class="setting-label">
+                            <strong style="color: #38bdf8;">🐞 Modo Debug (Consola Interna)</strong>
+                            <span class="setting-sub" style="color: #9ca3af; font-size: 0.8rem; line-height: 1.3; display: block; margin-top: 3px;">
+                                Muestra una consola flotante con registros de eventos, paquetes LAN y errores. Apagado por defecto para no consumir recursos.
+                            </span>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="opt-debug-mode-toggle" ${currentDebugMode ? 'checked' : ''}>
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
 
@@ -401,6 +418,16 @@ const OptionsTab = {
             if (autoRotateToggle) {
                 localStorage.setItem('continental_auto_rotate_black', autoRotateToggle.checked);
             }
+            const debugModeToggle = document.getElementById('opt-debug-mode-toggle');
+            if (debugModeToggle) {
+                const isDebug = debugModeToggle.checked;
+                if (typeof DebugLogger !== 'undefined') {
+                    DebugLogger.setEnabled(isDebug);
+                } else {
+                    localStorage.setItem('continental_debug_mode', isDebug);
+                }
+            }
+
             if (testModeToggle) {
                 const isTestMode = testModeToggle.checked;
                 localStorage.setItem('continental_test_mode', isTestMode);

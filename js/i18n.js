@@ -47,7 +47,7 @@ const I18n = {
             submodeCapturaCentro: "Captura el Centro",
             submodeCapturaCentroDesc: "Domina el centro (d4, d5, e4, e5) durante 3 turnos para ganar",
             submodeGranEjercito: "Gran Ejército",
-            submodeGranEjercitoDesc: "Empieza con 4 puntos de refuerzo iniciales sin despliegue de élites",
+            submodeGranEjercitoDesc: "Empieza con 4 puntos de refuerzo iniciales sin despliegue de comandantes",
             submodeAjedrez360: "Ajedrez 360 (Fischer Random)",
             submodeAjedrez360Desc: "Disposición inicial barajada al azar entre 960 combinaciones",
 
@@ -65,6 +65,7 @@ const I18n = {
 
             modeLabel: "Modo de Juego",
             modeVsAi: "Contra IA / Bot",
+            modeAI: "Contra IA / Bot",
             modePassPlay: "2 Jugadores (Local)",
             modeLan: "Multijugador LAN / Wi-Fi",
 
@@ -80,6 +81,7 @@ const I18n = {
             lanWaiting: "Esperando oponente en la red local...",
 
             startGameBtn: "¡A Jugar!",
+            btnStartMatch: "¡A Jugar!",
 
             // In-Game UI
             whitePlayer: "Blancas",
@@ -140,6 +142,7 @@ const I18n = {
                             <li><strong>SIN AVANCE DOBLE:</strong> Los peones no avanzan 2 casillas en su primer turno.</li>
                             <li><strong>SIN ENROQUE:</strong> La maniobra de enroque no existe en Continental.</li>
                             <li><strong>PEÓN AL PASO:</strong> SÍ se encuentra habilitado para situaciones aplicables.</li>
+                            <li><strong>SIN MOVIMIENTOS DISPONIBLES (PASE AUTO / EMPATE):</strong> Si un jugador no tiene movimientos legales en su turno, su turno se pasa automáticamente al oponente. Si NINGUNO de los dos jugadores tiene movimientos legales, la partida termina inmediatamente en EMPATE.</li>
                             <li><strong>PAUSA DE RELOJ:</strong> Siempre que surge un pop-up o menú de decisión táctica, el tiempo se congela hasta por un máximo de 5 segundos.</li>
                         </ul>
                     </section>
@@ -181,12 +184,12 @@ const I18n = {
                         <p>En su turno, cada jugador puede realizar una de las siguientes acciones:</p>
                         <ul>
                             <li><strong>Mover y Rotar:</strong> Desplazar una pieza y elegir hacia dónde apuntará en 8 direcciones si es Octogonal.</li>
-                            <li><strong>Pasar Turno o Pasar y Rotar:</strong> Puedes ceder la iniciativa directamente, o rotar cualquier pieza octogonal propia a elección antes de pasar el turno (incluso si no tienes piezas octogonales, puedes pasar el turno sin problemas).</li>
+                            <li><strong>Pasar Turno o Pasar y Rotar:</strong> Puedes ceder la iniciativa directamente, o rotar cualquier pieza octogonal propia a elección antes de pasar el turno (incluso si no tienes piezas octogonales, puedes pasar el turno sin problemas). Si no tienes movimientos posibles, el turno se pasa automáticamente.</li>
                             <li><strong>Usar Habilidad y Rotar:</strong> Activar la habilidad especial de una unidad (sólo si hay un objetivo válido) y luego rotarla.</li>
                         </ul>
                         <p><strong>Mecánicas Especiales de Unidades:</strong></p>
                         <ul>
-                            <li><strong>Rey (♚):</strong> Vale 6 puntos en lugar de 3. Esto significa que puedes sacrificar todo tu ejército (excepto el Rey) y aún así mantener 6 puntos para ganar. Además, en modos donde no se gana por puntos (ej: Captura el Centro), iniciar con un Rey te otorga 4 Puntos de Refuerzo adicionales desde el turno 1.</li>
+                            <li><strong>Rey (♚) y Promoción a Rey:</strong> Vale 6 puntos en el conteo de ejército (ya sea el Rey inicial o un peón que promocione a Rey). Además, en el modo <em>Captura el Centro</em> (modo sin victoria por puntos), tanto al iniciar con un Rey como al promocionar un peón a Rey, se otorgan 4 Puntos de Refuerzo adicionales al bando.</li>
                             <li><strong>Cañón (💣):</strong> Destruye simultáneamente a TODAS las piezas (aliadas o enemigas) en su línea frontal de hasta 3 casillas. Tiene un cooldown de 1 turno (flecha roja lista en tu turno, gris tras disparar, amarilla en recarga/advertencia de peligro).</li>
                             <li><strong>Mago (🧙):</strong> Puede rotar entre Postura de Soldado y Postura de Mercenario. Al atacar una pieza enemiga, un pop-up permite elegir entre <em>Disparar Hechizo</em> (a distancia sin moverse) o <em>Comer</em> (desplazándose a la casilla).</li>
                             <li><strong>Gigante (🗿):</strong> Al interactuar con una pieza adyacente (aliada o enemiga), puede elegir entre <em>Devorarla</em> o <em>Arrojarla</em> por el aire a 1 casilla alrededor sin moverse. Si arroja una pieza sobre otra, ambas mueren aplastadas.</li>
@@ -262,7 +265,7 @@ const I18n = {
             submodeCapturaCentro: "Center Capture",
             submodeCapturaCentroDesc: "Control the center (d4, d5, e4, e5) for 3 turns to win",
             submodeGranEjercito: "Grand Army",
-            submodeGranEjercitoDesc: "Starts with 4 initial reinforcement points and no backline deployment",
+            submodeGranEjercitoDesc: "Starts with 4 initial reinforcement points and no commander deployment",
             submodeAjedrez360: "Chess 360 (Fischer Random)",
             submodeAjedrez360Desc: "Shuffled starting rank among 960 unique positions",
 
@@ -280,6 +283,7 @@ const I18n = {
 
             modeLabel: "Game Mode",
             modeVsAi: "VS AI / Bot",
+            modeAI: "VS AI / Bot",
             modePassPlay: "2 Players (Local Pass & Play)",
             modeLan: "LAN / Wi-Fi Multiplayer",
 
@@ -295,6 +299,7 @@ const I18n = {
             lanWaiting: "Waiting for local network opponent...",
 
             startGameBtn: "Play Match!",
+            btnStartMatch: "Play Match!",
 
             // In-Game UI
             whitePlayer: "White",

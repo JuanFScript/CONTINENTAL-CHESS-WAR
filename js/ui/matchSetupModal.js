@@ -25,6 +25,18 @@ const MatchSetupModal = {
                     this.onStartMatch(options);
                 }
             };
+
+            NetworkManager.onRoomSettingsReceived = (settings) => {
+                this.applyHostRoomSettings(settings);
+            };
+
+            NetworkManager.onHostLeft = (data) => {
+                this.handleHostLeft(data?.reason || 'El anfitrión abandonó la sala.');
+            };
+
+            NetworkManager.onStatusChange = (status, guestName) => {
+                this.handleLanStatusChange(status, guestName);
+            };
         }
     },
 
@@ -144,12 +156,12 @@ const MatchSetupModal = {
                         <div id="custom-time-inputs" class="custom-time-container" style="display: ${this.selectedTime === 'custom' ? 'flex' : 'none'};">
                             <div class="custom-time-group">
                                 <label for="custom-min-input">Min</label>
-                                <input type="number" id="custom-min-input" min="0" max="180" value="${customTimeMin}" class="custom-time-box">
+                                <input type="number" id="custom-min-input" min="0" max="180" value="${customTimeMin}" class="custom-num-input" style="color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; background: rgba(0,0,0,0.6) !important; font-weight: bold; font-size: 1.1rem; text-align: center;">
                             </div>
                             <span class="custom-time-separator">:</span>
                             <div class="custom-time-group">
                                 <label for="custom-sec-input">Seg</label>
-                                <input type="number" id="custom-sec-input" min="0" max="59" value="${customTimeSec}" class="custom-time-box">
+                                <input type="number" id="custom-sec-input" min="0" max="59" value="${customTimeSec}" class="custom-num-input" style="color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; background: rgba(0,0,0,0.6) !important; font-weight: bold; font-size: 1.1rem; text-align: center;">
                             </div>
                         </div>
                     </div>
@@ -183,7 +195,7 @@ const MatchSetupModal = {
                             </button>
                             <button class="mode-card ${this.selectedMode === 'ai' ? 'mode-active' : ''}" data-mode="ai">
                                 <div class="mode-icon">🤖</div>
-                                <div data-i18n="modeAI">${(typeof I18n !== 'undefined' ? I18n.get('modeAI') : null) || 'Contra IA / Bot'}</div>
+                                <div data-i18n="modeVsAi">${(typeof I18n !== 'undefined' ? (I18n.get('modeVsAi') || I18n.get('modeAI')) : null) || 'Contra IA / Bot'}</div>
                             </button>
                             <button class="mode-card ${this.selectedMode === 'lan' ? 'mode-active' : ''}" data-mode="lan">
                                 <div class="mode-icon">📡</div>
@@ -270,6 +282,7 @@ const MatchSetupModal = {
         this.container.innerHTML = modalHtml;
         this.renderSubmodes();
         this.bindEvents();
+        this.updateStartButtonForLanGuest();
     },
 
     renderSubmodes() {
@@ -303,6 +316,7 @@ const MatchSetupModal = {
                 if (centerPanel) {
                     centerPanel.style.display = this.selectedSubmode === 'continental_captura_centro' ? 'block' : 'none';
                 }
+                this.broadcastSettingsToGuest();
             });
         });
     },
@@ -319,14 +333,63 @@ const MatchSetupModal = {
         list.innerHTML = rooms.map(room => {
             const isContinental = room.gameType === 'continental';
             const icon = isContinental ? '⚔️' : '♟️';
-            const modeName = isContinental ? 'Continental' : 'Ajedrez';
+
+            // Detailed mode description
+            let submodeName = '';
+            if (isContinental) {
+                if (room.submode === 'continental_captura_centro') {
+                    const turns = room.centerTurns || 3;
+                    const racha = room.centerConsecutive !== false ? 'Consecutivos' : 'Acumulativos';
+                    submodeName = `Continental — Captura el Centro: ${turns} Turnos (${racha})`;
+                } else if (room.submode === 'continental_gran_ejercito') {
+                    submodeName = 'Continental — Gran Ejército';
+                } else {
+                    submodeName = 'Continental — Clásico';
+                }
+            } else {
+                if (room.submode === 'ajedrez_360') {
+                    submodeName = 'Ajedrez 360 (Fischer Random)';
+                } else {
+                    submodeName = 'Ajedrez Clásico';
+                }
+            }
+
+            // Detailed time description
+            let timeDesc = '';
+            const tSec = room.timeSeconds !== undefined ? room.timeSeconds : ((room.timeMinutes || 10) * 60);
+            if (room.timeType === 'unlimited' || tSec === 0) {
+                timeDesc = '♾️ Sin Tiempo';
+            } else if (room.timeType === 'custom') {
+                const m = Math.floor(tSec / 60);
+                const s = tSec % 60;
+                timeDesc = `⏱️ Custom: ${m} m ${s} s`;
+            } else {
+                const m = room.timeMinutes || Math.floor(tSec / 60);
+                const tag = m >= 10 ? 'Rápida' : (m >= 3 ? 'Blitz' : 'Bala');
+                timeDesc = `⏱️ ${m} min (${tag})`;
+            }
+
+            const isFriendlyRoom = !!(room.isFriendly || room.sandboxMode);
+            const friendlyBadge = isFriendlyRoom
+                ? `<span style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #6ee7b7; border-radius: 4px; padding: 1px 6px; font-size: 0.68rem; font-weight: bold; margin-left: 6px;">🤝 Amistosa</span>`
+                : '';
+
             return `
                 <div class="lan-room-item" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px;">
-                    <div>
-                        <strong style="display: block; font-size: 0.85rem; color: #f0fdf4;">${icon} Sala de ${room.hostName || 'Jugador'}</strong>
-                        <span style="font-size: 0.72rem; color: #94a3b8;">${modeName} • Código: <strong>${room.code}</strong></span>
+                    <div style="flex: 1; min-width: 0; padding-right: 8px;">
+                        <strong style="display: block; font-size: 0.85rem; color: #f0fdf4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            ${icon} Sala de ${room.hostName || 'Jugador'} ${friendlyBadge}
+                        </strong>
+                        <div style="font-size: 0.72rem; color: #60a5fa; font-weight: 600; margin-top: 2px;">
+                            ${submodeName}
+                        </div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+                            <span>${timeDesc}</span>
+                            <span>•</span>
+                            <span>Código: <strong style="color: #34d399;">${room.code}</strong></span>
+                        </div>
                     </div>
-                    <button class="action-btn primary-btn small-btn btn-join-discovered" data-code="${room.code}" style="padding: 4px 10px; font-size: 0.75rem;">
+                    <button class="action-btn primary-btn small-btn btn-join-discovered" data-code="${room.code}" style="padding: 6px 12px; font-size: 0.78rem; font-weight: bold; white-space: nowrap;">
                         Unirse
                     </button>
                 </div>
@@ -338,7 +401,10 @@ const MatchSetupModal = {
                 e.stopPropagation();
                 const code = btn.dataset.code;
                 const statusEl = document.getElementById('lan-status-msg');
-                if (statusEl) statusEl.textContent = `Conectando a la sala ${code}...`;
+                if (statusEl) {
+                    statusEl.textContent = `Conectando a la sala ${code}...`;
+                    statusEl.style.color = '#fbbf24';
+                }
 
                 const nameInput = document.getElementById('lan-player-name-input');
                 if (nameInput && typeof NetworkManager !== 'undefined') {
@@ -348,14 +414,176 @@ const MatchSetupModal = {
                 if (typeof NetworkManager !== 'undefined') {
                     NetworkManager.joinRoom(code, (success, err, hostName) => {
                         if (success) {
-                            if (statusEl) statusEl.textContent = `¡Aceptado por ${hostName || 'el anfitrión'}! Esperando inicio de partida...`;
+                            if (statusEl) {
+                                statusEl.textContent = `¡Aceptado por ${hostName || 'el anfitrión'}! Esperando inicio de partida...`;
+                                statusEl.style.color = '#34d399';
+                            }
+                            this.updateStartButtonForLanGuest();
                         } else {
-                            if (statusEl) statusEl.textContent = `Error: ${err || 'No se pudo conectar'}`;
+                            if (statusEl) {
+                                statusEl.textContent = `Error: ${err || 'No se pudo conectar'}`;
+                                statusEl.style.color = '#f87171';
+                            }
                         }
                     });
                 }
             });
         });
+    },
+
+    applyHostRoomSettings(settings) {
+        if (!settings) return;
+        if (settings.gameType) this.selectedGame = settings.gameType;
+        if (settings.submode) this.selectedSubmode = settings.submode;
+        if (settings.selectedTime) this.selectedTime = settings.selectedTime;
+        else if (settings.timeMinutes !== undefined) this.selectedTime = String(settings.timeMinutes);
+
+        this.render();
+        const statusEl = document.getElementById('lan-status-msg');
+        if (statusEl) {
+            statusEl.textContent = '⚙️ Configuración sincronizada con el anfitrión. Esperando inicio...';
+            statusEl.style.color = '#34d399';
+        }
+        this.updateStartButtonForLanGuest();
+    },
+
+    updateStartButtonForLanGuest() {
+        const btnStart = document.getElementById('btn-start-match');
+        if (!btnStart) return;
+
+        if (this.selectedMode === 'lan' && typeof NetworkManager !== 'undefined' && NetworkManager.conn && !NetworkManager.isHost) {
+            btnStart.disabled = true;
+            btnStart.style.opacity = '0.6';
+            btnStart.style.cursor = 'not-allowed';
+            btnStart.textContent = '⏳ Esperando que el anfitrión inicie...';
+        } else {
+            btnStart.disabled = false;
+            btnStart.style.opacity = '1';
+            btnStart.style.cursor = 'pointer';
+            btnStart.textContent = (typeof I18n !== 'undefined' ? (I18n.get('startGameBtn') || I18n.get('btnStartMatch')) : null) || '¡A Jugar!';
+        }
+    },
+
+    handleHostLeft(reason) {
+        if (typeof NetworkManager !== 'undefined') {
+            NetworkManager.conn = null;
+            NetworkManager.roomCode = null;
+            NetworkManager.isHost = false;
+        }
+        const statusEl = document.getElementById('lan-status-msg');
+        if (statusEl) {
+            statusEl.textContent = '⚠️ ' + (reason || 'El anfitrión abandonó la sala.') + ' Puedes crear otra sala o unirte.';
+            statusEl.style.color = '#f87171';
+        }
+        this.showToast('⚠️ ' + (reason || 'El anfitrión abandonó la sala.'));
+        this.updateStartButtonForLanGuest();
+        if (this.selectedMode === 'lan' && typeof NetworkManager !== 'undefined') {
+            NetworkManager.startDiscovery((rooms) => this.renderLanDiscoveredRooms(rooms));
+        }
+    },
+
+    setHostControlsLocked(locked, guestName = '') {
+        const modal = document.getElementById('match-setup-modal');
+        if (!modal) return;
+
+        const elementsToToggle = modal.querySelectorAll('button:not(#btn-start-match):not(#btn-close-setup), input, select, .submode-card, .game-card, .pill-btn, .side-btn, .mode-card');
+        elementsToToggle.forEach(el => {
+            if (locked) {
+                el.setAttribute('data-host-locked', 'true');
+                if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+                    el.disabled = true;
+                }
+                el.style.pointerEvents = 'none';
+                el.style.opacity = '0.45';
+            } else {
+                el.removeAttribute('data-host-locked');
+                if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+                    el.disabled = false;
+                }
+                el.style.pointerEvents = '';
+                el.style.opacity = '';
+            }
+        });
+
+        const statusEl = document.getElementById('lan-status-msg');
+        if (statusEl) {
+            if (locked) {
+                statusEl.innerHTML = `🔒 ¡Rival conectado (${guestName || 'Jugador'})! Opciones bloqueadas.<br>Presiona <strong style="color: #34d399;">¡A Jugar!</strong> para iniciar.`;
+                statusEl.style.color = '#34d399';
+            } else {
+                statusEl.innerHTML = '';
+            }
+        }
+    },
+
+    handleLanStatusChange(status, guestName) {
+        if (status === 'connected') {
+            if (typeof NetworkManager !== 'undefined' && NetworkManager.isHost) {
+                this.setHostControlsLocked(true, guestName);
+                setTimeout(() => this.broadcastSettingsToGuest(), 200);
+            }
+        } else if (status === 'disconnected') {
+            if (typeof NetworkManager !== 'undefined' && NetworkManager.isHost) {
+                this.setHostControlsLocked(false);
+            }
+            if (typeof NetworkManager !== 'undefined' && !NetworkManager.isHost && NetworkManager.conn) {
+                this.handleHostLeft('El anfitrión se ha desconectado.');
+            }
+        }
+    },
+
+    showToast(msg) {
+        const existing = document.getElementById('lan-setup-toast');
+        if (existing) existing.remove();
+        const toast = document.createElement('div');
+        toast.id = 'lan-setup-toast';
+        toast.style.cssText = 'position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: rgba(239, 68, 68, 0.95); color: #fff; padding: 10px 20px; border-radius: 25px; font-weight: bold; font-size: 0.88rem; z-index: 99999; box-shadow: 0 8px 25px rgba(0,0,0,0.6); pointer-events: none;';
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    },
+
+    broadcastSettingsToGuest() {
+        let actualTimeSec = 0;
+        let actualTimeMin = 0;
+        if (this.selectedTime === 'custom') {
+            const cMin = parseInt(document.getElementById('custom-min-input')?.value || '3', 10);
+            const cSec = parseInt(document.getElementById('custom-sec-input')?.value || '0', 10);
+            actualTimeSec = Math.max(0, cMin * 60 + cSec);
+            actualTimeMin = Math.floor(actualTimeSec / 60);
+        } else if (this.selectedTime === 'unlimited') {
+            actualTimeMin = 0;
+            actualTimeSec = 0;
+        } else {
+            actualTimeMin = parseInt(this.selectedTime, 10) || 0;
+            actualTimeSec = actualTimeMin * 60;
+        }
+
+        const centerTurnsEl = document.getElementById('modal-center-turns');
+        const customTurnsEl = document.getElementById('custom-center-turns-input');
+        const centerTurnsVal = centerTurnsEl ? (centerTurnsEl.value === 'custom' ? (customTurnsEl?.value || '15') : centerTurnsEl.value) : '3';
+        const centerConsecutiveVal = document.getElementById('modal-center-consecutive')?.value !== 'false';
+        const isAmistosa = document.getElementById('modal-sandbox-toggle')?.checked || false;
+
+        const updatedOpts = {
+            gameType: this.selectedGame,
+            submode: this.selectedSubmode,
+            timeType: this.selectedTime,
+            selectedTime: this.selectedTime,
+            timeMinutes: actualTimeMin,
+            timeSeconds: actualTimeSec,
+            centerTurns: parseInt(centerTurnsVal, 10),
+            centerConsecutive: centerConsecutiveVal,
+            isFriendly: isAmistosa,
+            sandboxMode: isAmistosa
+        };
+
+        if (typeof NetworkManager !== 'undefined') {
+            NetworkManager.updateRoomOptions(updatedOpts);
+            if (NetworkManager.conn && NetworkManager.conn.open && NetworkManager.isHost) {
+                NetworkManager.sendRoomSettings(updatedOpts);
+            }
+        }
     },
 
     showJoinApprovalModal(request) {
@@ -389,8 +617,8 @@ const MatchSetupModal = {
         modalDiv.querySelector('#btn-accept-join')?.addEventListener('click', () => {
             request.accept();
             modalDiv.remove();
-            const statusEl = document.getElementById('lan-status-msg');
-            if (statusEl) statusEl.textContent = `¡Rival conectado (${request.guestName})! Presiona ¡A Jugar! para iniciar.`;
+            this.setHostControlsLocked(true, request.guestName);
+            setTimeout(() => this.broadcastSettingsToGuest(), 200);
         });
 
         modalDiv.querySelector('#btn-reject-join')?.addEventListener('click', () => {
@@ -408,7 +636,11 @@ const MatchSetupModal = {
         // Close button (Volver al menú)
         document.getElementById('btn-close-setup')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (typeof NetworkManager !== 'undefined') NetworkManager.stopDiscovery();
+            this.setHostControlsLocked(false);
+            if (typeof NetworkManager !== 'undefined') {
+                NetworkManager.stopDiscovery();
+                NetworkManager.disconnect();
+            }
             this.close();
         });
 
@@ -429,6 +661,7 @@ const MatchSetupModal = {
                 btn.classList.add('game-card-active');
 
                 this.renderSubmodes();
+                this.broadcastSettingsToGuest();
             });
         });
 
@@ -444,7 +677,14 @@ const MatchSetupModal = {
                 if (customBox) {
                     customBox.style.display = this.selectedTime === 'custom' ? 'flex' : 'none';
                 }
+                this.broadcastSettingsToGuest();
             });
+        });
+
+        // Custom Time Inputs change
+        ['input', 'change'].forEach(evtType => {
+            document.getElementById('custom-min-input')?.addEventListener(evtType, () => this.broadcastSettingsToGuest());
+            document.getElementById('custom-sec-input')?.addEventListener(evtType, () => this.broadcastSettingsToGuest());
         });
 
         // Center Turns Dropdown change
@@ -455,8 +695,18 @@ const MatchSetupModal = {
                 if (customTurnsBox) {
                     customTurnsBox.style.display = e.target.value === 'custom' ? 'inline-block' : 'none';
                 }
+                this.broadcastSettingsToGuest();
             });
         }
+
+        // Custom Center Turns Input & Consecutive Dropdown change
+        ['input', 'change'].forEach(evtType => {
+            document.getElementById('custom-center-turns-input')?.addEventListener(evtType, () => this.broadcastSettingsToGuest());
+        });
+        document.getElementById('modal-center-consecutive')?.addEventListener('change', () => this.broadcastSettingsToGuest());
+
+        // Friendly / Sandbox Mode Toggle change
+        document.getElementById('modal-sandbox-toggle')?.addEventListener('change', () => this.broadcastSettingsToGuest());
 
         // Side Selection Clicks
         modal.querySelectorAll('[data-side]').forEach(btn => {
@@ -487,24 +737,8 @@ const MatchSetupModal = {
                         NetworkManager.stopDiscovery();
                     }
                 }
+                this.updateStartButtonForLanGuest();
             });
-        });
-
-        // Player Name Randomizer
-        document.getElementById('btn-lan-random-name')?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (typeof NetworkManager !== 'undefined') {
-                const newName = NetworkManager.generateRandomPlayerName();
-                const input = document.getElementById('lan-player-name-input');
-                if (input) input.value = newName;
-            }
-        });
-
-        // Player Name Input change
-        document.getElementById('lan-player-name-input')?.addEventListener('input', (e) => {
-            if (typeof NetworkManager !== 'undefined') {
-                NetworkManager.setPlayerName(e.target.value);
-            }
         });
 
         // AI Difficulty Clicks
@@ -517,11 +751,30 @@ const MatchSetupModal = {
             });
         });
 
+        // Random Player Name button
+        document.getElementById('btn-lan-random-name')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof NetworkManager !== 'undefined') {
+                const newName = NetworkManager.generateRandomPlayerName();
+                const nameInput = document.getElementById('lan-player-name-input');
+                if (nameInput) nameInput.value = newName;
+            }
+            this.broadcastSettingsToGuest();
+        });
+
+        // Player Name input
+        document.getElementById('lan-player-name-input')?.addEventListener('input', (e) => {
+            if (typeof NetworkManager !== 'undefined') {
+                NetworkManager.setPlayerName(e.target.value);
+            }
+            this.broadcastSettingsToGuest();
+        });
+
         // REAL PeerJS Host Button
         document.getElementById('btn-lan-host')?.addEventListener('click', (e) => {
             e.stopPropagation();
             const statusEl = document.getElementById('lan-status-msg');
-            if (statusEl) statusEl.textContent = 'Creando sala LAN en vivo...';
+            if (statusEl) statusEl.textContent = 'Iniciando servidor de sala P2P...';
 
             const nameInput = document.getElementById('lan-player-name-input');
             if (nameInput && typeof NetworkManager !== 'undefined') {
@@ -529,10 +782,37 @@ const MatchSetupModal = {
             }
 
             if (typeof NetworkManager !== 'undefined') {
+                let actualTimeSec = 0;
+                let actualTimeMin = 0;
+                if (this.selectedTime === 'custom') {
+                    const cMin = parseInt(document.getElementById('custom-min-input')?.value || '3', 10);
+                    const cSec = parseInt(document.getElementById('custom-sec-input')?.value || '0', 10);
+                    actualTimeSec = Math.max(0, cMin * 60 + cSec);
+                    actualTimeMin = Math.floor(actualTimeSec / 60);
+                } else if (this.selectedTime === 'unlimited') {
+                    actualTimeMin = 0;
+                    actualTimeSec = 0;
+                } else {
+                    actualTimeMin = parseInt(this.selectedTime, 10) || 0;
+                    actualTimeSec = actualTimeMin * 60;
+                }
+
+                const centerTurnsEl = document.getElementById('modal-center-turns');
+                const customTurnsEl = document.getElementById('custom-center-turns-input');
+                const centerTurnsVal = centerTurnsEl ? (centerTurnsEl.value === 'custom' ? (customTurnsEl?.value || '15') : centerTurnsEl.value) : '3';
+                const centerConsecutiveVal = document.getElementById('modal-center-consecutive')?.value !== 'false';
+                const isAmistosa = document.getElementById('modal-sandbox-toggle')?.checked || false;
                 const roomOpts = {
                     gameType: this.selectedGame,
                     submode: this.selectedSubmode,
-                    timeMinutes: parseInt(this.selectedTime, 10) || 10
+                    timeType: this.selectedTime,
+                    selectedTime: this.selectedTime,
+                    timeMinutes: actualTimeMin,
+                    timeSeconds: actualTimeSec,
+                    centerTurns: parseInt(centerTurnsVal, 10),
+                    centerConsecutive: centerConsecutiveVal,
+                    isFriendly: isAmistosa,
+                    sandboxMode: isAmistosa
                 };
 
                 NetworkManager.onJoinRequest = (request) => {
@@ -542,18 +822,19 @@ const MatchSetupModal = {
                 NetworkManager.hostRoom(
                     roomOpts,
                     (roomCode) => {
-                        if (statusEl) statusEl.textContent = `📡 Sala Creada: ${roomCode} (Esperando a que un jugador se una...)`;
+                        if (statusEl) {
+                            statusEl.textContent = `📡 Sala Creada: ${roomCode} (Esperando a que un jugador se una...)`;
+                            statusEl.style.color = '#34d399';
+                        }
+                        this.updateStartButtonForLanGuest();
                     },
                     (err) => {
-                        if (statusEl) statusEl.textContent = `Error al crear sala: ${err}`;
+                        if (statusEl) {
+                            statusEl.textContent = `Error al crear sala: ${err}`;
+                            statusEl.style.color = '#f87171';
+                        }
                     }
                 );
-
-                NetworkManager.onStatusChange = (status, guestName) => {
-                    if (status === 'connected' && statusEl) {
-                        statusEl.textContent = `¡Rival conectado (${guestName || 'Jugador'})! Presiona ¡A Jugar! para iniciar.`;
-                    }
-                };
             }
         });
 
@@ -565,7 +846,10 @@ const MatchSetupModal = {
             const statusEl = document.getElementById('lan-status-msg');
 
             if (!code) {
-                if (statusEl) statusEl.textContent = 'Ingresa un código válido (ej: CW-4892)';
+                if (statusEl) {
+                    statusEl.textContent = 'Ingresa un código válido (ej: CW-4892)';
+                    statusEl.style.color = '#f87171';
+                }
                 return;
             }
 
@@ -574,14 +858,24 @@ const MatchSetupModal = {
                 NetworkManager.setPlayerName(nameInput.value);
             }
 
-            if (statusEl) statusEl.textContent = `Solicitando unirse a ${code}...`;
+            if (statusEl) {
+                statusEl.textContent = `Solicitando unirse a ${code}...`;
+                statusEl.style.color = '#fbbf24';
+            }
 
             if (typeof NetworkManager !== 'undefined') {
                 NetworkManager.joinRoom(code, (success, err, hostName) => {
                     if (success) {
-                        if (statusEl) statusEl.textContent = `¡Aceptado por ${hostName || 'el anfitrión'}! Esperando inicio de partida...`;
+                        if (statusEl) {
+                            statusEl.textContent = `¡Aceptado por ${hostName || 'el anfitrión'}! Esperando inicio de partida...`;
+                            statusEl.style.color = '#34d399';
+                        }
+                        this.updateStartButtonForLanGuest();
                     } else {
-                        if (statusEl) statusEl.textContent = `Error: ${err || 'No se pudo conectar'}`;
+                        if (statusEl) {
+                            statusEl.textContent = `Error: ${err || 'No se pudo conectar'}`;
+                            statusEl.style.color = '#f87171';
+                        }
                     }
                 });
             }
@@ -590,6 +884,13 @@ const MatchSetupModal = {
         // Start Match Button
         document.getElementById('btn-start-match')?.addEventListener('click', (e) => {
             e.stopPropagation();
+
+            if (this.selectedMode === 'lan' && typeof NetworkManager !== 'undefined') {
+                if (NetworkManager.conn && !NetworkManager.isHost) {
+                    alert('Solo el anfitrión de la sala puede iniciar la partida. Espera a que el anfitrión presione ¡A Jugar!.');
+                    return;
+                }
+            }
 
             let actualTimeSec = 0;
             let actualTimeMin = 0;
@@ -621,6 +922,7 @@ const MatchSetupModal = {
                 actualSide = Math.random() > 0.5 ? 'w' : 'b';
             }
 
+            const isAmistosa = document.getElementById('modal-sandbox-toggle')?.checked || false;
             const matchOptions = {
                 gameType: this.selectedGame,
                 submode: this.selectedSubmode,
@@ -630,7 +932,10 @@ const MatchSetupModal = {
                 centerConsecutive: modalCenterConsecutive,
                 playerSide: actualSide,
                 mode: this.selectedMode,
-                difficulty: this.selectedDifficulty
+                difficulty: this.selectedDifficulty,
+                isFriendly: isAmistosa,
+                sandboxMode: isAmistosa,
+                isSandbox: isAmistosa
             };
 
             // If LAN mode and Host, transmit start match options to Guest

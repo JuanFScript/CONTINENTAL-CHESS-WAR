@@ -38,16 +38,16 @@ class RulesEngine {
                     const tier = reg ? reg.tier : 'peones';
                     const isKing = (piece.type === 'c_rey' || piece.type === 'k');
 
-                    if (piece.promoted) {
-                        if (tier === 'comandantes' || isKing || piece.type === 'q') {
+                    if (isKing) {
+                        total += 6;
+                    } else if (piece.promoted) {
+                        if (tier === 'comandantes' || piece.type === 'q') {
                             total += 3;
                         } else if (tier === 'elites' || ['r', 'b', 'n'].includes(piece.type)) {
                             total += 2;
                         } else {
                             total += 2;
                         }
-                    } else if (isKing) {
-                        total += 6;
                     } else if (tier === 'comandantes') {
                         total += 3;
                     } else if (tier === 'elites') {
@@ -235,12 +235,27 @@ class RulesEngine {
     /**
      * Execute turn move
      */
-    executeMove(fromR, fromC, toR, toC, promotionType = null) {
-        const legalMoves = this.getLegalMoves(fromR, fromC);
-        const targetMove = legalMoves.find(m => m.r === toR && m.c === toC);
-        if (!targetMove) return false;
-
+    executeMove(fromR, fromC, toR, toC, promotionType = null, isRemote = false) {
         const piece = this.board.getPiece(fromR, fromC);
+        if (!piece) {
+            if (typeof DebugLogger !== 'undefined') DebugLogger.log('ERROR', `executeMove: No hay pieza en (${fromR}, ${fromC})`);
+            return false;
+        }
+
+        const legalMoves = this.getLegalMoves(fromR, fromC);
+        let targetMove = legalMoves.find(m => m.r === toR && m.c === toC);
+
+        if (!targetMove) {
+            if (isRemote) {
+                if (typeof DebugLogger !== 'undefined') {
+                    DebugLogger.log('SYNC', `Movimiento remoto de (${fromR},${fromC}) a (${toR},${toC}) forzado para sincronizar.`);
+                }
+                targetMove = { r: toR, c: toC, type: 'normal' };
+            } else {
+                if (typeof DebugLogger !== 'undefined') DebugLogger.log('ERROR', `executeMove: Movimiento de (${fromR},${fromC}) a (${toR},${toC}) no es válido.`);
+                return false;
+            }
+        }
         let special = null;
 
         // Check Ranged Snipe Move

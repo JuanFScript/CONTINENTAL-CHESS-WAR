@@ -222,13 +222,13 @@ const TutorialTab = {
                     details: [
                         "<strong>Flechas Giratorias:</strong> Solo giran las flechitas flotantes; el dibujo de la pieza se mantiene erguido.",
                         "<strong>Selector de Brújula:</strong> Tras mover o atacar, orientas tu pieza hacia la dirección elegida.",
-                        "<strong>Pasar Turno y Rotar:</strong> Puedes pulsar el botón <em>'Pasar y Rotar'</em> en el HUD si deseas reorientar una pieza octogonal sin moverla, o simplemente pasar tu turno."
+                        "<strong>Pasar Turno y Movimientos:</strong> Puedes pulsar el botón <em>'Pasar y Rotar'</em> en el HUD si deseas reorientar una pieza octogonal sin moverla, o simplemente pasar tu turno. Si te quedas sin movimientos legales, el turno se pasa automáticamente al rival. Si ambos se quedan sin movimientos, es EMPATE."
                     ],
                     visualType: "badge_box",
                     badges: [
                         { label: "Giro", value: "45° (8 Direcciones)" },
                         { label: "Textura", value: "Siempre erguida" },
-                        { label: "Acción", value: "Pasar y Rotar" }
+                        { label: "Acción", value: "Pasar o Auto-Pase" }
                     ],
                     setup: (b) => {
                         b.clear();
@@ -253,7 +253,7 @@ const TutorialTab = {
                         "<strong>Cañón (💣):</strong> Dispara un rayo frontal de 3 casillas destruyendo a TODAS las piezas en la línea. ¡Destruye a los 3 soldados enemigos en fila!",
                         "<strong>Arquero (🏹) y Mago (🧙):</strong> Disparan a distancia sin moverse de su casilla. El Mago puede cambiar entre Forma Soldado y Mercenario.",
                         "<strong>Gigante (🧌):</strong> Puede <em>Devorar</em> o <em>Arrojar</em> piezas adyacentes a 1 casilla de distancia. Si arroja una pieza sobre otra, ¡ambas mueren aplastadas!",
-                        "<strong>Rey (♚):</strong> Vale 6 puntos, lo que te permite sacrificar a todo tu ejército y ganar. En modos sin puntuación (como Captura el Centro), otorga 4 Puntos de Refuerzo adicionales.",
+                        "<strong>Rey (♚) y Promoción a Rey:</strong> Vale 6 puntos en el conteo (incluso si un peón promociona a Rey). En modos sin puntuación (como Captura el Centro), promover a Rey u otorgar inicio con Rey suma 4 Puntos de Refuerzo inmediatos a la reserva.",
                         "<strong>Lobos (🐺), Escuderos (🛡️) y Defensor (🔰):</strong> Los Lobos avanzan en manada tras mover; los Escuderos aplican Retribución al frente y a los lados; el Defensor es inmune a ser comido por las 3 casillas a donde apuntan sus flechas.",
                         "<strong>¡Turno Libre!:</strong> En esta práctica puedes mover libremente con Blancas para probar todas las habilidades."
                     ],

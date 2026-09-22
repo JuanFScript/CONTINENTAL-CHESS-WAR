@@ -39,7 +39,7 @@ class GameController {
     }
 
     startMatch(options) {
-        document.getElementById('game-over-inspector-bar')?.remove();
+        this.closeBoardInspector();
         document.querySelectorAll('.floating-popup-wrapper').forEach(el => el.remove());
         document.querySelectorAll('.modal-overlay').forEach(el => {
             if (el.id !== 'match-setup-modal') el.remove();
@@ -59,6 +59,7 @@ class GameController {
         this.moveHistoryStack = [];
         this.matchOptions = options;
         this.isGameOver = false;
+        this.opponentLeftHandled = false;
         this.isClockPaused = false;
         this.selectedSquare = null;
         this.selectedLegalMoves = [];
@@ -81,19 +82,91 @@ class GameController {
         this.whiteTime = timeSec;
         this.blackTime = timeSec;
 
-        this.boardRenderer.flipped = (options.playerSide === 'b');
+        this.boardRenderer.flipped = ((options.mode === 'ai' || options.mode === 'lan') && options.playerSide === 'b');
 
         if (options.mode === 'lan' && typeof NetworkManager !== 'undefined') {
             NetworkManager.onMoveReceived = (moveData) => {
                 if (moveData && moveData.fromR !== undefined) {
-                    this.performRegularMove(moveData.fromR, moveData.fromC, moveData.toR, moveData.toC, moveData.promotionType);
+                    this.performRegularMove(moveData.fromR, moveData.fromC, moveData.toR, moveData.toC, moveData.promotionType, true, moveData.facing, moveData.stance);
+                    if (moveData.activeColorAfter) {
+                        this.rulesEngine.activeColor = moveData.activeColorAfter;
+                    }
+                    if (moveData.whiteTime !== undefined) this.whiteTime = moveData.whiteTime;
+                    if (moveData.blackTime !== undefined) this.blackTime = moveData.blackTime;
+                    this.updateClockDisplay();
+                    this.renderHUD();
                 }
+            };
+
+            NetworkManager.onPassTurnReceived = (data) => {
+                if (data && data.rotatedPiece) {
+                    const p = this.boardEngine.getPiece(data.rotatedPiece.r, data.rotatedPiece.c);
+                    if (p) {
+                        if (data.rotatedPiece.facing !== undefined) {
+                            p.facing = data.rotatedPiece.facing;
+                        }
+                        if (data.rotatedPiece.stance !== undefined) {
+                            p.stance = data.rotatedPiece.stance;
+                        }
+                    }
+                }
+                this.saveStateSnapshot();
+                if (data && data.activeColorAfter) {
+                    this.rulesEngine.activeColor = data.activeColorAfter;
+                } else {
+                    this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                }
+                if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+                if (data?.whiteTime !== undefined) this.whiteTime = data.whiteTime;
+                if (data?.blackTime !== undefined) this.blackTime = data.blackTime;
+                this.updateClockDisplay();
+                this.finalizeTurn({ success: true, moveRecord: { passed: true } });
+            };
+
+            NetworkManager.onPopupPauseReceived = (data) => {
+                const secs = data?.seconds || 5;
+                this.pauseClockTemporarily(secs, true);
+                if (data?.whiteTime !== undefined) this.whiteTime = data.whiteTime;
+                if (data?.blackTime !== undefined) this.blackTime = data.blackTime;
+                this.updateClockDisplay();
+            };
+
+            NetworkManager.onClockSyncReceived = (data) => {
+                if (data?.whiteTime !== undefined) this.whiteTime = data.whiteTime;
+                if (data?.blackTime !== undefined) this.blackTime = data.blackTime;
+                this.updateClockDisplay();
+            };
+
+            NetworkManager.onGameOverCheckReceived = (data) => {
+                if (!this.isGameOver) {
+                    const reason = data?.reason || 'Fin de partida reportado por el rival';
+                    this.endMatch(reason);
+                }
+            };
+
+            NetworkManager.onRematchRequestReceived = () => {
+                this.showRematchOfferModal();
+            };
+
+            NetworkManager.onRematchConfirmReceived = () => {
+                this.closeRematchModals();
+                const newSide = this.matchOptions.playerSide === 'w' ? 'b' : 'w';
+                this.startMatch({
+                    ...this.matchOptions,
+                    playerSide: newSide
+                });
+            };
+
+            NetworkManager.onRematchCancelReceived = (data) => {
+                this.closeRematchModals();
+                this.showRematchCancelledToast(data?.reason || 'El rival rechazó la revancha o salió al menú.');
             };
 
             NetworkManager.onDraftPickReceived = (data) => {
                 if (this.isDrafting && this.draftSteps && this.draftSteps[this.draftStep]) {
                     const step = this.draftSteps[this.draftStep];
-                    step.apply(data.chosenType, this.boardEngine);
+                    const chosenType = data.chosenType || data.pieceType;
+                    step.apply(chosenType, this.boardEngine);
                     AudioManager.playMove();
                     this.boardRenderer.render();
                     this.closeDraftWaitingModal();
@@ -106,27 +179,190 @@ class GameController {
                 const mySignature = this.boardEngine.getBoardSignature();
                 if (mySignature !== data.signature) {
                     console.error('[LAN SYNC ERROR] Board signatures mismatch!', mySignature, data.signature);
-                    alert('❌ Error crítico de sincronización: Los tableros no coinciden entre ambos dispositivos. La partida se cerrará.');
-                    this.stopClock();
-                    if (typeof MenuController !== 'undefined') {
-                        MenuController.showView('view-main-menu');
-                    }
-                    NetworkManager.disconnect();
+                    alert('❌ Error de sincronización: Los tableros no coinciden. La partida se cerrará.');
+                    this.exitGame('menu', { skipConfirm: true });
                 } else {
                     console.log('[LAN SYNC SUCCESS] Board signatures verified perfectly!');
                     this.onDraftVerificationSuccess();
                 }
             };
 
+            NetworkManager.onGiganteThrowReceived = (data) => {
+                this.saveStateSnapshot();
+                const { fromR, fromC, targetR, targetC, landingR, landingC } = data;
+                const thrownPiece = this.boardEngine.getPiece(targetR, targetC);
+                this.boardEngine.setPiece(targetR, targetC, null);
+                const squashedPiece = this.boardEngine.getPiece(landingR, landingC);
+                const gig = this.boardEngine.getPiece(fromR, fromC);
+
+                if (squashedPiece) {
+                    AudioManager.playCapture();
+                    this.rulesEngine.capturedPieces[this.rulesEngine.activeColor].push(squashedPiece);
+                    if (thrownPiece) this.rulesEngine.capturedPieces[this.rulesEngine.activeColor].push(thrownPiece);
+                    this.boardEngine.setPiece(landingR, landingC, null);
+                    for (let r = 0; r < this.boardEngine.rows; r++) {
+                        for (let c = 0; c < this.boardEngine.cols; c++) {
+                            const p = this.boardEngine.getPiece(r, c);
+                            if (p && p.color === this.rulesEngine.activeColor) p.capturedLastTurn = false;
+                        }
+                    }
+                    if (gig) gig.capturedLastTurn = true;
+                } else {
+                    AudioManager.playMove();
+                    this.boardEngine.setPiece(landingR, landingC, thrownPiece);
+                }
+
+                if (data.activeColorAfter) {
+                    this.rulesEngine.activeColor = data.activeColorAfter;
+                } else {
+                    this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                }
+                if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+                if (data.whiteTime !== undefined) this.whiteTime = data.whiteTime;
+                if (data.blackTime !== undefined) this.blackTime = data.blackTime;
+                this.boardRenderer.render();
+                this.updateClockDisplay();
+                this.finalizeTurn({ success: true, moveRecord: { piece: gig || thrownPiece, captured: squashedPiece } });
+            };
+
+            NetworkManager.onCanonBeamReceived = (data) => {
+                this.saveStateSnapshot();
+                const { r, c, facing } = data;
+                const piece = this.boardEngine.getPiece(r, c);
+                if (piece) {
+                    if (facing !== undefined && facing !== null) piece.facing = facing;
+                    const beamResult = PieceRegistry.fireCanonBeam(this.boardEngine, r, c);
+                    if (beamResult.destroyed.length > 0) {
+                        AudioManager.playCapture();
+                        beamResult.destroyed.forEach(d => {
+                            this.rulesEngine.capturedPieces[piece.color].push(d.piece);
+                        });
+                        for (let i = 0; i < this.boardEngine.rows; i++) {
+                            for (let j = 0; j < this.boardEngine.cols; j++) {
+                                const p = this.boardEngine.getPiece(i, j);
+                                if (p && p.color === piece.color) p.capturedLastTurn = false;
+                            }
+                        }
+                        piece.capturedLastTurn = true;
+                    } else {
+                        AudioManager.playMove();
+                    }
+                }
+
+                if (data.activeColorAfter) {
+                    this.rulesEngine.activeColor = data.activeColorAfter;
+                } else {
+                    this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                }
+                if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+                if (data.whiteTime !== undefined) this.whiteTime = data.whiteTime;
+                if (data.blackTime !== undefined) this.blackTime = data.blackTime;
+                this.boardRenderer.render();
+                this.updateClockDisplay();
+                this.finalizeTurn({ success: true, moveRecord: { piece } });
+            };
+
+            NetworkManager.onMagoAttackReceived = (data) => {
+                this.saveStateSnapshot();
+                const { fromR, fromC, toR, toC, facing, stance } = data;
+                const piece = this.boardEngine.getPiece(fromR, fromC);
+                const targetPiece = this.boardEngine.getPiece(toR, toC);
+                if (targetPiece && piece) {
+                    this.rulesEngine.capturedPieces[piece.color].push(targetPiece);
+                    this.boardEngine.setPiece(toR, toC, null);
+                    AudioManager.playCapture();
+                    if (facing !== undefined && facing !== null) piece.facing = facing;
+                    if (stance) piece.stance = stance;
+                }
+                if (data.activeColorAfter) {
+                    this.rulesEngine.activeColor = data.activeColorAfter;
+                } else {
+                    this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                }
+                if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+                if (data.whiteTime !== undefined) this.whiteTime = data.whiteTime;
+                if (data.blackTime !== undefined) this.blackTime = data.blackTime;
+                this.boardRenderer.render();
+                this.updateClockDisplay();
+                this.finalizeTurn({ success: true, moveRecord: { piece, captured: targetPiece } });
+            };
+
+            NetworkManager.onWolfSurgeReceived = (data) => {
+                if (data && data.wolfAdvances && data.wolfAdvances.length > 0) {
+                    data.wolfAdvances.forEach(adv => {
+                        const wolfPiece = this.boardEngine.getPiece(adv.fromR, adv.fromC);
+                        const targetPiece = this.boardEngine.getPiece(adv.toR, adv.toC);
+                        this.boardEngine.setPiece(adv.fromR, adv.fromC, null);
+                        this.boardEngine.setPiece(adv.toR, adv.toC, {
+                            type: 'c_lobo',
+                            color: adv.color || wolfPiece?.color || 'w',
+                            moved: true,
+                            capturedLastTurn: !!targetPiece
+                        });
+                        if (targetPiece) {
+                            this.rulesEngine.capturedPieces[adv.color || 'w'].push(targetPiece);
+                            AudioManager.playCapture();
+                        } else {
+                            AudioManager.playMove();
+                        }
+                    });
+                    this.boardRenderer.render();
+                }
+            };
+
+            NetworkManager.onReinforcementWaitingReceived = (data) => {
+                this.showReinforcementWaitingModal(data.side);
+            };
+
+            NetworkManager.onReinforcementPlaceReceived = (data) => {
+                const { row, col, unitType, side } = data;
+                this.boardEngine.setPiece(row, col, {
+                    type: unitType,
+                    color: side,
+                    facing: side === 'w' ? 0 : 180
+                });
+                AudioManager.playMove();
+                this.boardRenderer.render();
+                this.renderHUD();
+            };
+
+            NetworkManager.onReinforcementDoneReceived = (data) => {
+                this.closeReinforcementWaitingModal();
+                if (data.bankedPoints !== undefined && data.side) {
+                    this.reinforcementsBank[data.side] = data.bankedPoints;
+                }
+                this.boardRenderer.render();
+                this.renderHUD();
+                if (this.pendingReinforcementNextStep) {
+                    const next = this.pendingReinforcementNextStep;
+                    this.pendingReinforcementNextStep = null;
+                    next();
+                }
+            };
+
+            NetworkManager.onDrawRequestReceived = (data) => {
+                this.handleDrawProposalReceivedFromOpponent(data);
+            };
+
+            NetworkManager.onDrawResponseReceived = (data) => {
+                this.handleDrawProposalResponseFromOpponent(data);
+            };
+
+            NetworkManager.onDrawBidReceived = (data) => {
+                if (this.handleDrawBidReceived) {
+                    this.handleDrawBidReceived(data);
+                }
+            };
+
             NetworkManager.onConnectionLost = () => {
-                this.showConnectionLostModal();
+                if (this.isGameOver || this.opponentLeftHandled) return;
+                this.handleOpponentLeftOrSurrendered('🏆 ¡Victoria por Desconexión!\nSe ha perdido la conexión con el rival.');
             };
 
             NetworkManager.onSurrenderReceived = (data) => {
+                if (this.isGameOver || this.opponentLeftHandled) return;
                 const surrendereeName = (data && data.playerName) ? data.playerName : 'El rival';
-                this.stopClock();
-                AudioManager.playVictory();
-                this.endMatch(`🏆 ¡${surrendereeName} se ha rendido! ¡Ganaste la partida!`);
+                this.handleOpponentLeftOrSurrendered(`🏆 ¡${surrendereeName} ha abandonado la partida!\n¡Eres el ganador!`);
             };
         }
 
@@ -357,21 +593,43 @@ class GameController {
         modal.className = 'modal-overlay modal-active';
         modal.style.zIndex = '9998';
         modal.innerHTML = `
-            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(16, 42, 32, 0.95); border: 2px solid rgba(52, 211, 153, 0.4); border-radius: 14px;">
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(16, 42, 32, 0.95); border: 2px solid rgba(52, 211, 153, 0.4); border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
                 <div style="font-size: 2.2rem; margin-bottom: 10px;">⏳</div>
                 <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.15rem; margin-bottom: 6px;">Esperando al Rival</h3>
                 <p style="font-size: 0.9rem; color: #a7f3d0; margin-bottom: 14px;">
                     El rival está eligiendo su pieza para <strong>${sideName}</strong>...
                 </p>
-                <div class="loading-spinner" style="margin: 0 auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #10b981; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div class="loading-spinner" style="margin: 0 auto 16px auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #10b981; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                
+                <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
+                    <button id="btn-draft-view-board" class="action-btn secondary-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; font-weight: bold; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff;">
+                        👁️ Mirar Tablero
+                    </button>
+                    <button id="btn-draft-resign-menu" class="action-btn secondary-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; font-weight: bold; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5;">
+                        🚪 Salir / Rendirse
+                    </button>
+                </div>
             </div>
         `;
         document.body.appendChild(modal);
+
+        modal.querySelector('#btn-draft-view-board')?.addEventListener('click', () => {
+            this.openBoardInspector({
+                title: `⏳ Esperando rival (${sideName})...`,
+                modalElement: modal,
+                showResign: true
+            });
+        });
+
+        modal.querySelector('#btn-draft-resign-menu')?.addEventListener('click', () => {
+            this.exitGame('menu');
+        });
     }
 
     closeDraftWaitingModal() {
         const modal = document.getElementById('modal-draft-waiting');
         if (modal) modal.remove();
+        this.closeBoardInspector();
     }
 
     showDraftVerifyingModal() {
@@ -383,22 +641,56 @@ class GameController {
         modal.className = 'modal-overlay modal-active';
         modal.style.zIndex = '9998';
         modal.innerHTML = `
-            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(16, 42, 32, 0.95); border: 2px solid rgba(52, 211, 153, 0.4); border-radius: 14px;">
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(16, 42, 32, 0.95); border: 2px solid rgba(52, 211, 153, 0.4); border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
                 <div style="font-size: 2.2rem; margin-bottom: 10px;">🔍</div>
                 <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.15rem; margin-bottom: 6px;">Sincronizando Tableros</h3>
                 <p style="font-size: 0.9rem; color: #a7f3d0; margin-bottom: 14px;">
                     Verificando que la configuración de piezas sea idéntica en ambos celulares...
                 </p>
-                <div class="loading-spinner" style="margin: 0 auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #10b981; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div class="loading-spinner" style="margin: 0 auto 16px auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #10b981; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                
+                <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
+                    <button id="btn-verify-view-board" class="action-btn secondary-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; font-weight: bold; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff;">
+                        👁️ Mirar Tablero
+                    </button>
+                    <button id="btn-verify-resign-menu" class="action-btn secondary-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; font-weight: bold; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5;">
+                        🚪 Salir / Rendirse
+                    </button>
+                </div>
             </div>
         `;
         document.body.appendChild(modal);
+
+        modal.querySelector('#btn-verify-view-board')?.addEventListener('click', () => {
+            this.openBoardInspector({
+                title: '🔍 Verificando tableros...',
+                modalElement: modal,
+                showResign: true
+            });
+        });
+
+        modal.querySelector('#btn-verify-resign-menu')?.addEventListener('click', () => {
+            this.exitGame('menu');
+        });
     }
 
     onDraftVerificationSuccess() {
         const modal = document.getElementById('modal-draft-verifying');
         if (modal) modal.remove();
+        this.closeBoardInspector();
         this.finalizeDraftAndStartGame();
+    }
+
+    showFloatingWaitingBar(label, onReopen) {
+        this.openBoardInspector({
+            title: label,
+            onReopen: onReopen,
+            showResign: true
+        });
+    }
+
+    closeFloatingWaitingBar() {
+        this.closeBoardInspector();
     }
 
     finalizeDraftAndStartGame() {
@@ -415,17 +707,18 @@ class GameController {
         AudioManager.playVictory();
 
         if (this.matchOptions?.submode === 'continental_gran_ejercito') {
-            this.openPlacementModal('w', 4, (remW) => {
-                this.reinforcementsBank.w += remW;
-                this.openPlacementModal('b', 4, (remB) => {
-                    this.reinforcementsBank.b += remB;
+            this.startUnifiedReinforcementFlow({
+                side: 'w',
+                points: 4,
+                isSequentialTwoPlayer: true,
+                onComplete: () => {
                     this.boardRenderer.render();
                     this.renderHUD();
                     if (this.whiteTime > 0) this.startClock();
                     if (this.matchOptions.mode === 'ai' && this.matchOptions.playerSide === 'b' && this.rulesEngine.activeColor === 'w') {
                         setTimeout(() => this.triggerAIMove(), 1000);
                     }
-                });
+                }
             });
             return;
         }
@@ -463,10 +756,7 @@ class GameController {
 
         modal.querySelector('#btn-conn-lost-menu')?.addEventListener('click', () => {
             modal.remove();
-            this.stopClock();
-            if (typeof MenuController !== 'undefined') {
-                MenuController.showView('view-main-menu');
-            }
+            this.exitGame('menu', { skipConfirm: true });
         });
     }
 
@@ -503,37 +793,38 @@ class GameController {
         `;
     }
 
-    attachBoardInspectionBehavior(modal, sideName = 'Elección de Piezas', reinforcementPoints = null) {
-        const viewBoardBtn = modal.querySelector('.btn-modal-view-board');
-        if (!viewBoardBtn) return;
+    openBoardInspector({ title = '🔍 Viendo Tablero', badgeHtml = '', modalElement = null, onReopen = null, showResign = true, onResign = null }) {
+        this.closeBoardInspector();
 
-        viewBoardBtn.addEventListener('click', () => {
-            modal.style.display = 'none';
-            this.showBoardInspectionOverlay(modal, sideName, reinforcementPoints);
-        });
-    }
+        // 1. Ocultar modal previo si existe
+        if (modalElement) {
+            modalElement.style.display = 'none';
+        }
 
-    showBoardInspectionOverlay(modal, sideName, reinforcementPoints = null) {
-        if (document.getElementById('modal-board-inspection-bar')) return;
-
-        // Block all board interactions & HUD clicks while inspecting
+        // 2. Bloqueador de pantalla completa que impide clics en HUD (Opciones, Rendirse, Pasar, Menú) y casillas
         const blocker = document.createElement('div');
-        blocker.id = 'modal-board-inspection-blocker';
+        blocker.id = 'board-inspection-blocker';
         blocker.style.position = 'fixed';
-        blocker.style.top = '0';
-        blocker.style.left = '0';
+        blocker.style.inset = '0';
         blocker.style.width = '100vw';
         blocker.style.height = '100vh';
-        blocker.style.zIndex = '99998';
+        blocker.style.zIndex = '99995';
         blocker.style.background = 'rgba(0,0,0,0.01)';
-        blocker.addEventListener('click', (e) => {
+        blocker.style.pointerEvents = 'all';
+        blocker.style.touchAction = 'none';
+
+        const stopEvent = (e) => {
             e.stopPropagation();
             e.preventDefault();
-        }, true);
+        };
+        ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach(evt => {
+            blocker.addEventListener(evt, stopEvent, true);
+        });
         document.body.appendChild(blocker);
 
+        // 3. Barra flotante superior unificada
         const bar = document.createElement('div');
-        bar.id = 'modal-board-inspection-bar';
+        bar.id = 'board-inspection-bar';
         bar.style.position = 'fixed';
         bar.style.top = '15px';
         bar.style.left = '50%';
@@ -541,32 +832,90 @@ class GameController {
         bar.style.zIndex = '99999';
         bar.style.background = 'rgba(15, 23, 42, 0.95)';
         bar.style.backdropFilter = 'blur(12px)';
-        bar.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+        bar.style.border = '1px solid rgba(52, 211, 153, 0.5)';
         bar.style.borderRadius = '30px';
         bar.style.padding = '8px 18px';
-        bar.style.boxShadow = '0 8px 25px rgba(0,0,0,0.7)';
+        bar.style.boxShadow = '0 8px 30px rgba(0,0,0,0.8)';
         bar.style.display = 'flex';
-        bar.style.gap = '12px';
+        bar.style.gap = '10px';
         bar.style.alignItems = 'center';
+        bar.style.maxWidth = '92vw';
+        bar.style.flexWrap = 'wrap';
+        bar.style.justifyContent = 'center';
 
         bar.innerHTML = `
-            <span style="font-size: 0.85rem; color: #60a5fa; font-weight: bold;">🔍 Viendo Tablero (${sideName})</span>
-            ${reinforcementPoints !== null ? `
-                <span style="background: rgba(245, 158, 11, 0.25); border: 1.5px solid #f59e0b; border-radius: 12px; padding: 3px 10px; font-size: 0.85rem; font-weight: bold; color: #fef3c7; display: flex; align-items: center; gap: 6px;">
-                    🛡️ Refuerzos restantes: <strong style="font-size: 1.35rem; color: #fbbf24; font-weight: 900;">${reinforcementPoints}</strong>
-                </span>
-            ` : ''}
-            <button id="btn-return-from-inspection" style="padding: 6px 14px; border-radius: 20px; background: #2563eb; color: white; border: none; font-weight: bold; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                🔙 Volver a Elección
+            <span style="font-size: 0.85rem; color: #a7f3d0; font-weight: bold; white-space: nowrap;">${title}</span>
+            ${badgeHtml ? badgeHtml : ''}
+            <button id="btn-inspector-reopen" style="padding: 6px 14px; border-radius: 20px; background: #10b981; color: white; border: none; font-weight: bold; font-size: 0.8rem; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                👁️ Reabrir
             </button>
+            ${showResign ? `
+                <button id="btn-inspector-resign" style="padding: 6px 14px; border-radius: 20px; background: rgba(239, 68, 68, 0.3); color: #fca5a5; border: 1px solid #ef4444; font-weight: bold; font-size: 0.8rem; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                    🚪 Salir
+                </button>
+            ` : ''}
         `;
 
         document.body.appendChild(bar);
 
-        document.getElementById('btn-return-from-inspection')?.addEventListener('click', () => {
-            bar.remove();
-            blocker.remove();
-            modal.style.display = 'flex';
+        document.getElementById('btn-inspector-reopen')?.addEventListener('click', () => {
+            this.closeBoardInspector();
+            if (onReopen) {
+                onReopen();
+            } else if (modalElement) {
+                modalElement.style.display = 'flex';
+            }
+        });
+
+        if (showResign) {
+            document.getElementById('btn-inspector-resign')?.addEventListener('click', () => {
+                this.closeBoardInspector();
+                if (onResign) {
+                    onResign();
+                } else {
+                    this.exitGame('menu');
+                }
+            });
+        }
+    }
+
+    closeBoardInspector() {
+        document.getElementById('board-inspection-blocker')?.remove();
+        document.getElementById('board-inspection-bar')?.remove();
+        document.getElementById('modal-board-inspection-bar')?.remove();
+        document.getElementById('modal-board-inspection-blocker')?.remove();
+        document.getElementById('waiting-inspector-bar')?.remove();
+        document.getElementById('game-over-inspector-bar')?.remove();
+    }
+
+    attachBoardInspectionBehavior(modal, sideName = 'Elección de Piezas', reinforcementPoints = null) {
+        const viewBoardBtn = modal.querySelector('.btn-modal-view-board');
+        if (!viewBoardBtn) return;
+
+        viewBoardBtn.addEventListener('click', () => {
+            let badgeHtml = '';
+            if (reinforcementPoints !== null) {
+                badgeHtml = `<span style="background: rgba(245, 158, 11, 0.25); border: 1.5px solid #f59e0b; border-radius: 12px; padding: 2px 8px; font-size: 0.8rem; font-weight: bold; color: #fef3c7;">🛡️ Refuerzos: <strong style="color: #fbbf24;">${reinforcementPoints}</strong></span>`;
+            }
+            this.openBoardInspector({
+                title: `🔍 Viendo Tablero (${sideName})`,
+                badgeHtml: badgeHtml,
+                modalElement: modal,
+                showResign: false
+            });
+        });
+    }
+
+    showBoardInspectionOverlay(modal, sideName, reinforcementPoints = null) {
+        let badgeHtml = '';
+        if (reinforcementPoints !== null) {
+            badgeHtml = `<span style="background: rgba(245, 158, 11, 0.25); border: 1.5px solid #f59e0b; border-radius: 12px; padding: 2px 8px; font-size: 0.8rem; font-weight: bold; color: #fef3c7;">🛡️ Refuerzos: <strong style="color: #fbbf24;">${reinforcementPoints}</strong></span>`;
+        }
+        this.openBoardInspector({
+            title: `🔍 Viendo Tablero (${sideName})`,
+            badgeHtml: badgeHtml,
+            modalElement: modal,
+            showResign: false
         });
     }
 
@@ -624,13 +973,7 @@ class GameController {
         this.attachBoardInspectionBehavior(modal, step.side === 'w' ? 'Blancas' : 'Negras');
 
         modal.querySelector('.btn-modal-cancel-draft')?.addEventListener('click', () => {
-            modal.remove();
-            this.isDrafting = false;
-            if (this.clockTimer) clearInterval(this.clockTimer);
-            document.querySelectorAll('.floating-popup-wrapper, #modal-draft-choice, #modal-board-inspection-bar, #modal-board-inspection-blocker, .modal-overlay').forEach(el => el.remove());
-            if (typeof MenuController !== 'undefined') {
-                MenuController.switchView('main-menu');
-            }
+            this.exitGame('menu');
         });
 
         modal.querySelectorAll('.draft-opt-btn').forEach(btn => {
@@ -646,8 +989,17 @@ class GameController {
     // CLOCK CONTROL & PAUSE HELPER
     // =========================================================================
 
-    pauseClockTemporarily(maxSeconds = 5) {
+    pauseClockTemporarily(maxSeconds = 5, isRemote = false) {
         this.isClockPaused = true;
+
+        if (!isRemote && this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+            NetworkManager.sendPopupPause({
+                seconds: maxSeconds,
+                whiteTime: this.whiteTime,
+                blackTime: this.blackTime
+            });
+        }
+
         const resumeTimer = setTimeout(() => {
             this.isClockPaused = false;
         }, maxSeconds * 1000);
@@ -780,6 +1132,20 @@ class GameController {
                         this.openRotationPopup(fromR, fromC, () => {
                             this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
                             if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+                            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                                NetworkManager.sendMagoAttack({
+                                    fromR,
+                                    fromC,
+                                    toR,
+                                    toC,
+                                    choice: 'shoot',
+                                    facing: piece.facing,
+                                    stance: piece.stance,
+                                    activeColorAfter: this.rulesEngine.activeColor,
+                                    whiteTime: this.whiteTime,
+                                    blackTime: this.blackTime
+                                });
+                            }
                             this.finalizeTurn({ success: true, moveRecord: { piece, captured: targetPiece } });
                         });
                     }
@@ -814,20 +1180,38 @@ class GameController {
         this.performRegularMove(fromR, fromC, toR, toC);
     }
 
-    performRegularMove(fromR, fromC, toR, toC, promotionType = null) {
+    performRegularMove(fromR, fromC, toR, toC, promotionType = null, isRemote = false, remoteFacing = null, remoteStance = null) {
         const piece = this.boardEngine.getPiece(fromR, fromC);
+        if (!piece) return;
         const backRank = piece.color === 'w' ? 0 : (this.boardEngine.rows - 1);
         const isContinentalPawn = ['c_peon', 'c_dama', 'c_lobo', 'c_escudero', 'c_guardia'].includes(piece.type);
 
-        if ((piece.type === 'p' || isContinentalPawn) && toR === backRank && !promotionType) {
+        if ((piece.type === 'p' || isContinentalPawn) && toR === backRank && !promotionType && !isRemote) {
             this.openPromotionModal(piece.color, (selectedType) => {
-                this.performRegularMove(fromR, fromC, toR, toC, selectedType);
+                this.performRegularMove(fromR, fromC, toR, toC, selectedType, isRemote, remoteFacing, remoteStance);
             });
             return;
         }
 
-        const result = this.rulesEngine.executeMove(fromR, fromC, toR, toC, promotionType);
+        if (typeof DebugLogger !== 'undefined') {
+            const tag = isRemote ? 'RED' : 'JUEGO';
+            DebugLogger.log(tag, `Mover [${piece.color}] ${piece.type}: (${fromR},${fromC}) ➔ (${toR},${toC})`);
+        }
+
+        const result = this.rulesEngine.executeMove(fromR, fromC, toR, toC, promotionType, isRemote);
         if (result && result.success) {
+            this.consecutiveNoMovesPasses = 0;
+            if (result.moveRecord?.special?.type === 'promotion') {
+                const promoteType = result.moveRecord.special.promoteTo;
+                if (promoteType === 'c_rey' || promoteType === 'k') {
+                    if (this.matchOptions?.submode && this.matchOptions.submode.includes('captura_centro')) {
+                        const side = piece.color;
+                        this.reinforcementsBank[side] = (this.reinforcementsBank[side] || 0) + 4;
+                        this.showQuickToast('👑 ¡Promoción a Rey! +4 Puntos de Refuerzo agregados.');
+                    }
+                }
+            }
+
             if (result.moveRecord.captured) AudioManager.playCapture();
             else AudioManager.playMove();
 
@@ -838,12 +1222,40 @@ class GameController {
             this.selectedLegalMoves = [];
             this.boardRenderer.clearSelection();
 
-            if (this.matchOptions.mode === 'lan') {
-                NetworkManager.sendMove({ fromR, fromC, toR, toC, promotionType });
+            let pieceAfterMoveRow = toR;
+            let pieceAfterMoveCol = toC;
+            if (result.moveRecord && result.moveRecord.special && (result.moveRecord.special.type === 'ranged' || result.moveRecord.special.isRanged)) {
+                pieceAfterMoveRow = fromR;
+                pieceAfterMoveCol = fromC;
+            }
+            const movedPiece = this.boardEngine.getPiece(pieceAfterMoveRow, pieceAfterMoveCol);
+
+            if (isRemote && movedPiece) {
+                if (remoteFacing !== null && remoteFacing !== undefined) movedPiece.facing = remoteFacing;
+                if (remoteStance !== null && remoteStance !== undefined) movedPiece.stance = remoteStance;
             }
 
-            // Check Lobo Pack Surge
-            if (piece.type === 'c_lobo') {
+            const sendMoveNetworkSync = () => {
+                if (!isRemote && this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                    const currentPiece = this.boardEngine.getPiece(pieceAfterMoveRow, pieceAfterMoveCol);
+                    NetworkManager.sendMove({
+                        fromR,
+                        fromC,
+                        toR,
+                        toC,
+                        promotionType,
+                        facing: currentPiece ? currentPiece.facing : null,
+                        stance: currentPiece ? currentPiece.stance : null,
+                        activeColorAfter: this.rulesEngine.activeColor,
+                        whiteTime: this.whiteTime,
+                        blackTime: this.blackTime,
+                        moveNumber: this.rulesEngine.fullMoveNumber
+                    });
+                }
+            };
+
+            // Check Lobo Pack Surge (only for active local player)
+            if (!isRemote && piece.type === 'c_lobo') {
                 const rearWolves = PieceRegistry.WolfPackHelper
                     ? PieceRegistry.WolfPackHelper.getRearWolves(this.boardEngine, { r: fromR, c: fromC }, piece.color)
                     : [];
@@ -852,22 +1264,14 @@ class GameController {
                     this.wolfQueue = [...rearWolves];
                     this.isWolfPromptActive = true;
                     this.processNextWolfPopup(result);
+                    sendMoveNetworkSync();
                     return;
                 }
             }
 
-            // Check Octogonal Rotation Popup
-            let pieceAfterMoveRow = toR;
-            let pieceAfterMoveCol = toC;
-
-            if (result.moveRecord && result.moveRecord.special && (result.moveRecord.special.type === 'ranged' || result.moveRecord.special.isRanged)) {
-                pieceAfterMoveRow = fromR;
-                pieceAfterMoveCol = fromC;
-            }
-
-            const movedPiece = this.boardEngine.getPiece(pieceAfterMoveRow, pieceAfterMoveCol);
+            // Check Octogonal Rotation Popup (only for active local player)
             const reg = movedPiece ? PieceRegistry.get(movedPiece.type) : null;
-            const isOcto = reg && (
+            const isOcto = !isRemote && reg && (
                 reg.octogonal || 
                 (reg.tags && reg.tags.some(t => String(t).toLowerCase().includes('octo'))) ||
                 (typeof window !== 'undefined' && window.CONTINENTAL_TEST_MODE && movedPiece.type === 'c_arquero')
@@ -876,9 +1280,11 @@ class GameController {
             if (isOcto) {
                 this.boardRenderer.render(); // Render piece movement first so the popup anchors correctly to the piece's new position
                 this.openRotationPopup(pieceAfterMoveRow, pieceAfterMoveCol, () => {
+                    sendMoveNetworkSync();
                     this.finalizeTurn(result);
                 });
             } else {
+                sendMoveNetworkSync();
                 this.finalizeTurn(result);
             }
         }
@@ -1266,6 +1672,20 @@ class GameController {
         this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
         if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
 
+        if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+            NetworkManager.sendGiganteThrow({
+                fromR,
+                fromC,
+                targetR,
+                targetC,
+                landingR,
+                landingC,
+                activeColorAfter: this.rulesEngine.activeColor,
+                whiteTime: this.whiteTime,
+                blackTime: this.blackTime
+            });
+        }
+
         this.finalizeTurn({ success: true, moveRecord: { piece: gig || thrownPiece, captured: squashedPiece } });
     }
 
@@ -1330,6 +1750,17 @@ class GameController {
                 }
             }
 
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendCanonBeam({
+                    r,
+                    c,
+                    facing: piece.facing,
+                    activeColorAfter: this.rulesEngine.activeColor,
+                    whiteTime: this.whiteTime,
+                    blackTime: this.blackTime
+                });
+            }
+
             this.finalizeTurn({ success: true, moveRecord: { piece } });
         });
     }
@@ -1349,6 +1780,13 @@ class GameController {
     }
 
     openPassAndRotateModal() {
+        if (this.matchOptions?.mode === 'lan' && this.rulesEngine.activeColor !== this.matchOptions.playerSide) {
+            return;
+        }
+        if (this.matchOptions?.mode === 'ai' && this.rulesEngine.activeColor !== this.matchOptions.playerSide) {
+            return;
+        }
+
         const unpause = this.pauseClockTemporarily(5);
         const myOctoPieces = [];
 
@@ -1411,7 +1849,16 @@ class GameController {
                 modal.remove();
                 unpause();
                 this.saveStateSnapshot();
-                this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                const nextColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                    NetworkManager.sendPassTurn({
+                        rotatedPiece: null,
+                        activeColorAfter: nextColor,
+                        whiteTime: this.whiteTime,
+                        blackTime: this.blackTime
+                    });
+                }
+                this.rulesEngine.activeColor = nextColor;
                 if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
                 this.finalizeTurn({ success: true, moveRecord: { passed: true } });
             });
@@ -1423,7 +1870,16 @@ class GameController {
                     unpause();
                     this.saveStateSnapshot();
                     this.openRotationPopup(selected.r, selected.c, () => {
-                        this.rulesEngine.activeColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                        const nextColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                        if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                            NetworkManager.sendPassTurn({
+                                rotatedPiece: { r: selected.r, c: selected.c, facing: selected.piece.facing, stance: selected.piece.stance },
+                                activeColorAfter: nextColor,
+                                whiteTime: this.whiteTime,
+                                blackTime: this.blackTime
+                            });
+                        }
+                        this.rulesEngine.activeColor = nextColor;
                         if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
                         this.finalizeTurn({ success: true, moveRecord: { piece: selected.piece } });
                     });
@@ -1437,6 +1893,16 @@ class GameController {
     // =========================================================================
 
     handleDrawOrReinforcementRequest() {
+        if (this.matchOptions?.mode === 'lan') {
+            const proposingSide = this.matchOptions.playerSide;
+            const proposingName = (typeof NetworkManager !== 'undefined' ? NetworkManager.playerName : '') || (proposingSide === 'w' ? 'Blancas' : 'Negras');
+            if (typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendDrawRequest({ proposingSide, proposingName });
+            }
+            this.showDrawProposalWaitingModal();
+            return;
+        }
+
         const proposingSide = this.rulesEngine.activeColor;
         const recipientSide = proposingSide === 'w' ? 'b' : 'w';
         const proposingName = proposingSide === 'w' ? 'Blancas' : 'Negras';
@@ -1504,6 +1970,91 @@ class GameController {
         document.getElementById('btn-draw-req-reject')?.addEventListener('click', onReject);
     }
 
+    showDrawProposalWaitingModal() {
+        const existing = document.getElementById('modal-draw-proposal-waiting');
+        if (existing) existing.remove();
+        const modal = document.createElement('div');
+        modal.id = 'modal-draw-proposal-waiting';
+        modal.className = 'modal-overlay modal-active';
+        modal.style.zIndex = '9998';
+        modal.innerHTML = `
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(15, 23, 42, 0.95); border: 2px solid rgba(59, 130, 246, 0.5); border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                <div style="font-size: 2.2rem; margin-bottom: 8px;">🤝</div>
+                <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.15rem; margin-bottom: 6px;">Propuesta Enviada</h3>
+                <p style="font-size: 0.88rem; color: #93c5fd; margin-bottom: 14px; line-height: 1.4;">
+                    Esperando que el rival responda a la solicitud de Tablas y Refuerzos...
+                </p>
+                <div class="loading-spinner" style="margin: 0 auto 16px auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <button class="btn-modal-view-board action-btn secondary-btn small-btn" style="width: 100%; background: rgba(255,255,255,0.12);">
+                    👁️ Ver Tablero
+                </button>
+            </div>
+        `;
+        this.mountModal(modal);
+        this.attachBoardInspectionBehavior(modal, 'Oferta de Tablas');
+    }
+
+    handleDrawProposalReceivedFromOpponent(data) {
+        const proposingName = data?.proposingName || 'El rival';
+        const unpause = this.pauseClockTemporarily(5);
+
+        const modal = document.createElement('div');
+        modal.id = 'modal-draw-opponent-proposal';
+        modal.className = 'modal-overlay modal-active';
+        modal.innerHTML = `
+            <div class="modal-card glass-panel text-center animate-pop-in" style="max-width: 400px; padding: 22px;">
+                <div style="font-size: 2.5rem; margin-bottom: 8px;">🤝</div>
+                <h3 style="margin-bottom: 8px; font-size: 1.2rem;">Solicitud de Tablas y Refuerzos</h3>
+                <p style="font-size: 0.9rem; color: #a7f3d0; margin-bottom: 12px; line-height: 1.4;">
+                    El jugador <strong>${proposingName}</strong> propone negociar Tablas y recibir Puntos de Refuerzo.
+                </p>
+                <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 16px;">
+                    ¿Aceptas la solicitud para entrar a la negociación de refuerzos?
+                </p>
+                <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                    <button id="btn-lan-draw-accept" class="action-btn primary-btn" style="flex: 1; background: #16a34a; font-weight: bold;">
+                        ✅ Aceptar Propuesta
+                    </button>
+                    <button id="btn-lan-draw-reject" class="action-btn secondary-btn" style="flex: 1; background: #dc2626; font-weight: bold;">
+                        ❌ Rechazar
+                    </button>
+                </div>
+                <button class="btn-modal-view-board action-btn secondary-btn small-btn" style="width: 100%; background: rgba(255,255,255,0.12);">
+                    👁️ Ver Tablero
+                </button>
+            </div>
+        `;
+        this.mountModal(modal);
+        this.attachBoardInspectionBehavior(modal, 'Tablas');
+
+        modal.querySelector('#btn-lan-draw-accept')?.addEventListener('click', () => {
+            modal.remove();
+            unpause();
+            if (typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendDrawResponse({ accepted: true });
+            }
+            this.openDrawNegotiationModal();
+        });
+
+        modal.querySelector('#btn-lan-draw-reject')?.addEventListener('click', () => {
+            modal.remove();
+            unpause();
+            if (typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendDrawResponse({ accepted: false });
+            }
+        });
+    }
+
+    handleDrawProposalResponseFromOpponent(data) {
+        document.getElementById('modal-draw-proposal-waiting')?.remove();
+        if (data && data.accepted) {
+            this.showQuickToast('✅ ¡El rival aceptó la propuesta de Tablas y Refuerzos!');
+            this.openDrawNegotiationModal();
+        } else {
+            this.showQuickToast('❌ El rival rechazó la propuesta de Tablas y Refuerzos.');
+        }
+    }
+
     showQuickToast(msg) {
         const toast = document.createElement('div');
         toast.style.position = 'fixed';
@@ -1540,8 +2091,70 @@ class GameController {
 
         let currentRound = 1;
         let lastProposal = null;
+        const isLan = (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined');
+        const mySide = this.matchOptions?.playerSide;
+
+        const showWaitingModal = (sideToWait) => {
+            const existing = document.getElementById('modal-draw-bid-waiting');
+            if (existing) existing.remove();
+            const sideName = sideToWait === 'w' ? 'Blancas' : 'Negras';
+            const modal = document.createElement('div');
+            modal.id = 'modal-draw-bid-waiting';
+            modal.className = 'modal-overlay modal-active';
+            modal.style.zIndex = '9998';
+            modal.innerHTML = `
+                <div class="modal-card animate-pop-in text-center" style="padding: 24px; max-width: 360px; background: rgba(15, 23, 42, 0.95); border: 2px solid rgba(59, 130, 246, 0.5); border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                    <div style="font-size: 2.2rem; margin-bottom: 8px;">⏳</div>
+                    <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.15rem; margin-bottom: 6px;">Negociación de Refuerzos</h3>
+                    <p style="font-size: 0.88rem; color: #93c5fd; margin-bottom: 14px; line-height: 1.4;">
+                        Esperando la oferta o respuesta de <strong>${sideName}</strong>...
+                    </p>
+                    <div class="loading-spinner" style="margin: 0 auto 16px auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <button class="btn-modal-view-board action-btn secondary-btn small-btn" style="width: 100%; background: rgba(255,255,255,0.12);">
+                        👁️ Ver Tablero
+                    </button>
+                </div>
+            `;
+            this.mountModal(modal);
+            this.attachBoardInspectionBehavior(modal, 'Negociación');
+        };
+
+        const closeWaitingModal = () => {
+            document.getElementById('modal-draw-bid-waiting')?.remove();
+            this.closeBoardInspector();
+        };
+
+        if (isLan) {
+            this.handleDrawBidReceived = (data) => {
+                closeWaitingModal();
+                if (data.action === 'accept') {
+                    unpause();
+                    this.showQuickToast(`🤝 ¡Acuerdo de ${data.points} puntos de refuerzo!`);
+                    this.startReinforcementsPlacement(data.points, onComplete);
+                } else if (data.action === 'pure_draw') {
+                    unpause();
+                    this.endMatch('Tablas acordadas mutuamente entre ambos bandos.');
+                    if (onComplete) onComplete();
+                } else if (data.action === 'propose') {
+                    lastProposal = data.points;
+                    currentRound = data.round || (currentRound + 1);
+                    if (currentRound > 4) {
+                        unpause();
+                        this.showQuickToast(`🤝 4 rondas cumplidas: acuerdo automático de ${defaultPts} puntos.`);
+                        this.startReinforcementsPlacement(defaultPts, onComplete);
+                    } else {
+                        runNegotiationRound(mySide);
+                    }
+                }
+            };
+        }
 
         const runNegotiationRound = (side) => {
+            if (isLan && side !== mySide) {
+                showWaitingModal(side);
+                return;
+            }
+
             const sideName = side === 'w' ? 'Blancas' : 'Negras';
             const modal = document.createElement('div');
             modal.className = 'modal-overlay modal-active';
@@ -1559,7 +2172,7 @@ class GameController {
                     ${lastProposal ? `
                         <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 6px; padding: 4px 10px; margin: 4px auto 12px auto; display: inline-block;">
                             <span style="font-size: 1.15rem; font-weight: bold; color: #fbbf24; text-shadow: 0 0 5px rgba(245, 158, 11, 0.5);">
-                                🛡️ Propuesta: ${lastProposal} Puntos
+                                🛡️ Propuesta del rival: ${lastProposal} Puntos
                             </span>
                         </div>
                     ` : ''}
@@ -1589,11 +2202,9 @@ class GameController {
                 setTimeout(() => {
                     modal.remove();
                     if (lastProposal) {
-                        // AI Accepts
                         unpause();
                         this.startReinforcementsPlacement(lastProposal, onComplete);
                     } else {
-                        // AI Proposes default/max
                         lastProposal = defaultPts;
                         currentRound++;
                         runNegotiationRound(side === 'w' ? 'b' : 'w');
@@ -1608,15 +2219,18 @@ class GameController {
                     modal.remove();
 
                     if (lastProposal && chosen === lastProposal) {
+                        if (isLan) NetworkManager.sendDrawBid({ action: 'accept', points: chosen, side });
                         unpause();
                         this.startReinforcementsPlacement(chosen, onComplete);
                     } else {
                         lastProposal = chosen;
                         currentRound++;
                         if (currentRound > 4) {
+                            if (isLan) NetworkManager.sendDrawBid({ action: 'accept', points: defaultPts, side });
                             unpause();
                             this.startReinforcementsPlacement(defaultPts, onComplete);
                         } else {
+                            if (isLan) NetworkManager.sendDrawBid({ action: 'propose', points: chosen, round: currentRound, side });
                             runNegotiationRound(side === 'w' ? 'b' : 'w');
                         }
                     }
@@ -1625,12 +2239,14 @@ class GameController {
 
             document.getElementById('btn-bid-accept')?.addEventListener('click', () => {
                 modal.remove();
+                if (isLan) NetworkManager.sendDrawBid({ action: 'accept', points: lastProposal, side });
                 unpause();
                 this.startReinforcementsPlacement(lastProposal, onComplete);
             });
 
             document.getElementById('btn-bid-draw')?.addEventListener('click', () => {
                 modal.remove();
+                if (isLan) NetworkManager.sendDrawBid({ action: 'pure_draw', side });
                 unpause();
                 this.endMatch('Tablas acordadas mutuamente entre ambos bandos.');
                 if (onComplete) onComplete();
@@ -1641,15 +2257,139 @@ class GameController {
     }
 
     startReinforcementsPlacement(points, onComplete) {
-        this.openPlacementModal('w', points, (remainingW) => {
-            this.reinforcementsBank.w += remainingW;
-            this.openPlacementModal('b', points, (remainingB) => {
-                this.reinforcementsBank.b += remainingB;
-                this.boardRenderer.render();
-                this.renderHUD();
-                if (onComplete) onComplete();
+        this.startUnifiedReinforcementFlow({
+            side: 'w',
+            points: points,
+            isSequentialTwoPlayer: true,
+            onComplete: onComplete
+        });
+    }
+
+    startUnifiedReinforcementFlow({ side, points, isSequentialTwoPlayer, onComplete }) {
+        const isLan = (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined');
+        const mySide = this.matchOptions?.playerSide;
+
+        if (!isSequentialTwoPlayer) {
+            // Single player reinforcement (e.g. King reinforcement in Captura el Centro)
+            if (isLan) {
+                if (side === mySide) {
+                    NetworkManager.sendReinforcementWaiting({ side });
+                    this.openPlacementModal(side, points, (remaining) => {
+                        this.reinforcementsBank[side] = remaining;
+                        NetworkManager.sendReinforcementDone({ side, bankedPoints: remaining });
+                        this.boardRenderer.render();
+                        this.renderHUD();
+                        if (onComplete) onComplete();
+                    });
+                } else {
+                    this.showReinforcementWaitingModal(side);
+                    this.pendingReinforcementNextStep = () => {
+                        this.boardRenderer.render();
+                        this.renderHUD();
+                        if (onComplete) onComplete();
+                    };
+                }
+            } else {
+                this.openPlacementModal(side, points, (remaining) => {
+                    this.reinforcementsBank[side] = remaining;
+                    this.boardRenderer.render();
+                    this.renderHUD();
+                    if (onComplete) onComplete();
+                });
+            }
+            return;
+        }
+
+        // Sequential 2-player flow (White first, then Black)
+        const runSide = (currSide, nextSide) => {
+            if (isLan) {
+                if (currSide === mySide) {
+                    NetworkManager.sendReinforcementWaiting({ side: currSide });
+                    this.openPlacementModal(currSide, points, (rem) => {
+                        this.reinforcementsBank[currSide] += rem;
+                        NetworkManager.sendReinforcementDone({ side: currSide, bankedPoints: this.reinforcementsBank[currSide] });
+                        if (nextSide) {
+                            runSide(nextSide, null);
+                        } else {
+                            this.boardRenderer.render();
+                            this.renderHUD();
+                            if (onComplete) onComplete();
+                        }
+                    });
+                } else {
+                    this.showReinforcementWaitingModal(currSide);
+                    this.pendingReinforcementNextStep = () => {
+                        if (nextSide) {
+                            runSide(nextSide, null);
+                        } else {
+                            this.boardRenderer.render();
+                            this.renderHUD();
+                            if (onComplete) onComplete();
+                        }
+                    };
+                }
+            } else {
+                this.openPlacementModal(currSide, points, (rem) => {
+                    this.reinforcementsBank[currSide] += rem;
+                    if (nextSide) {
+                        runSide(nextSide, null);
+                    } else {
+                        this.boardRenderer.render();
+                        this.renderHUD();
+                        if (onComplete) onComplete();
+                    }
+                });
+            }
+        };
+
+        runSide('w', 'b');
+    }
+
+    showReinforcementWaitingModal(side) {
+        this.closeReinforcementWaitingModal();
+        const sideName = side === 'w' ? 'Blancas ⚪' : 'Negras ⚫';
+        const modal = document.createElement('div');
+        modal.id = 'modal-reinforcement-waiting';
+        modal.className = 'modal-overlay modal-active';
+        modal.style.zIndex = '9998';
+        modal.innerHTML = `
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(16, 42, 32, 0.95); border: 2px solid rgba(52, 211, 153, 0.4); border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                <div style="font-size: 2.2rem; margin-bottom: 10px;">🛡️</div>
+                <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.15rem; margin-bottom: 6px;">Refuerzos en Camino</h3>
+                <p style="font-size: 0.9rem; color: #a7f3d0; margin-bottom: 14px;">
+                    El rival está desplegando sus refuerzos para <strong>${sideName}</strong>...
+                </p>
+                <div class="loading-spinner" style="margin: 0 auto 16px auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #10b981; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                
+                <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
+                    <button id="btn-reinf-view-board" class="action-btn secondary-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; font-weight: bold; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff;">
+                        👁️ Mirar Tablero
+                    </button>
+                    <button id="btn-reinf-resign-menu" class="action-btn secondary-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; font-weight: bold; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5;">
+                        🚪 Salir / Rendirse
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#btn-reinf-view-board')?.addEventListener('click', () => {
+            this.openBoardInspector({
+                title: `🛡️ Despliegue de rival (${sideName})...`,
+                modalElement: modal,
+                showResign: true
             });
         });
+
+        modal.querySelector('#btn-reinf-resign-menu')?.addEventListener('click', () => {
+            this.exitGame('menu');
+        });
+    }
+
+    closeReinforcementWaitingModal() {
+        const modal = document.getElementById('modal-reinforcement-waiting');
+        if (modal) modal.remove();
+        this.closeBoardInspector();
     }
 
     openPlacementModal(side, points, callback) {
@@ -1781,7 +2521,7 @@ class GameController {
 
     executeReinforcementPlacement(r, c) {
         document.getElementById('modal-reinforcement-placement-banner')?.remove();
-        const { row, emptyCols, unitType, side, callback } = this.reinforcementData;
+        const { row, emptyCols, unitType, side, cost, currentPoints, callback } = this.reinforcementData;
         if (r !== row || !emptyCols.includes(c)) return;
 
         this.boardEngine.setPiece(row, c, {
@@ -1789,6 +2529,18 @@ class GameController {
             color: side,
             facing: side === 'w' ? 0 : 180
         });
+
+        if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+            const remPoints = (currentPoints !== undefined && cost !== undefined) ? (currentPoints - cost) : 0;
+            NetworkManager.sendReinforcementPlace({
+                row,
+                col: c,
+                unitType,
+                side,
+                cost,
+                remainingPoints: remPoints
+            });
+        }
 
         this.isReinforcementMode = false;
         this.reinforcementData = null;
@@ -1813,11 +2565,11 @@ class GameController {
         }
 
         if (hasEmpty) {
-            this.openPlacementModal(active, this.reinforcementsBank[active], (rem) => {
-                this.reinforcementsBank[active] = rem;
-                this.boardRenderer.render();
-                this.renderHUD();
-                if (onComplete) onComplete();
+            this.startUnifiedReinforcementFlow({
+                side: active,
+                points: this.reinforcementsBank[active],
+                isSequentialTwoPlayer: false,
+                onComplete
             });
         } else {
             if (onComplete) onComplete();
@@ -1833,7 +2585,7 @@ class GameController {
             this.rulesEngine.activeColor = 'w';
         }
 
-        this.boardRenderer.flipped = (this.matchOptions?.mode === 'ai' && this.matchOptions?.playerSide === 'b');
+        this.boardRenderer.flipped = ((this.matchOptions?.mode === 'ai' || this.matchOptions?.mode === 'lan') && this.matchOptions?.playerSide === 'b');
         this.boardRenderer.render();
         this.updateMatchState(result, () => {
             if (this.isGameOver) return;
@@ -1844,12 +2596,84 @@ class GameController {
                 return;
             }
 
+            if (this.checkNoLegalMovesPass()) {
+                return;
+            }
+
             this.checkPendingReinforcements(() => {
                 if (this.matchOptions.mode === 'ai' && this.rulesEngine.activeColor !== this.matchOptions.playerSide) {
                     setTimeout(() => this.triggerAIMove(), 400);
                 }
             });
         });
+    }
+
+    checkNoLegalMovesPass() {
+        if (this.isGameOver) return false;
+        const active = this.rulesEngine.activeColor;
+        const other = active === 'w' ? 'b' : 'w';
+
+        // Do not intercept if standard checkmate applies
+        if (!this.rulesEngine.isContinental && this.rulesEngine.isCheckmate(active)) {
+            return false;
+        }
+
+        const activeMoves = this.rulesEngine.getAllLegalMoves(active);
+        if (activeMoves.length === 0) {
+            const otherMoves = this.rulesEngine.getAllLegalMoves(other);
+            if (otherMoves.length === 0) {
+                const msg = '¡EMPATE! Ninguno de los dos jugadores tiene movimientos legales disponibles.';
+                if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                    NetworkManager.sendGameOverCheck({ winner: 'draw', reason: msg });
+                }
+                this.endMatch(msg);
+                return true;
+            }
+
+            this.consecutiveNoMovesPasses = (this.consecutiveNoMovesPasses || 0) + 1;
+            if (this.consecutiveNoMovesPasses >= 4) {
+                const msg = '¡EMPATE! Se alcanzaron pases automáticos sin movimientos disponibles.';
+                if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                    NetworkManager.sendGameOverCheck({ winner: 'draw', reason: msg });
+                }
+                this.endMatch(msg);
+                return true;
+            }
+
+            const activeName = active === 'w' ? 'Blancas' : 'Negras';
+            this.showQuickToast(`⚠️ ¡${activeName} no tiene movimientos disponibles! Se pasa el turno.`);
+
+            this.rulesEngine.activeColor = other;
+            if (other === 'w') this.rulesEngine.fullMoveNumber++;
+
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendPassTurn({
+                    rotatedPiece: null,
+                    activeColorAfter: other,
+                    whiteTime: this.whiteTime,
+                    blackTime: this.blackTime
+                });
+            }
+
+            this.boardRenderer.flipped = ((this.matchOptions?.mode === 'ai' || this.matchOptions?.mode === 'lan') && this.matchOptions?.playerSide === 'b');
+            this.boardRenderer.render();
+            this.renderHUD();
+
+            if (this.checkNoLegalMovesPass()) {
+                return true;
+            }
+
+            this.checkPendingReinforcements(() => {
+                if (this.matchOptions.mode === 'ai' && this.rulesEngine.activeColor !== this.matchOptions.playerSide) {
+                    setTimeout(() => this.triggerAIMove(), 400);
+                }
+            });
+
+            return true;
+        }
+
+        this.consecutiveNoMovesPasses = 0;
+        return false;
     }
 
     checkCenterControl() {
@@ -1885,9 +2709,17 @@ class GameController {
         const requiredTurns = this.matchOptions?.centerTurns || 3;
 
         if (this.centerStreak.w >= requiredTurns) {
-            this.endMatch(`¡VICTORIA POR CAPTURA DEL CENTRO! Blancas dominaron el centro durante ${requiredTurns} turnos consecutivos.`);
+            const msg = `¡VICTORIA POR CAPTURA DEL CENTRO! Blancas dominaron el centro durante ${requiredTurns} turnos consecutivos.`;
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendGameOverCheck({ winner: 'w', reason: msg });
+            }
+            this.endMatch(msg);
         } else if (this.centerStreak.b >= requiredTurns) {
-            this.endMatch(`¡VICTORIA POR CAPTURA DEL CENTRO! Negras dominaron el centro durante ${requiredTurns} turnos consecutivos.`);
+            const msg = `¡VICTORIA POR CAPTURA DEL CENTRO! Negras dominaron el centro durante ${requiredTurns} turnos consecutivos.`;
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendGameOverCheck({ winner: 'b', reason: msg });
+            }
+            this.endMatch(msg);
         }
     }
 
@@ -1912,6 +2744,9 @@ class GameController {
             if (!isCapturaCentro) {
                 const continentalWin = this.rulesEngine.checkContinentalVictory();
                 if (continentalWin) {
+                    if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                        NetworkManager.sendGameOverCheck({ winner: continentalWin.winner, reason: continentalWin.message });
+                    }
                     this.endMatch(continentalWin.message);
                     if (onComplete) onComplete();
                     return;
@@ -1925,9 +2760,18 @@ class GameController {
         }
 
         if (result && result.isCheckmate) {
-            this.endMatch(`${I18n.get('checkmateNotice')} ${I18n.get('winText')} ${result.moveRecord.piece.color === 'w' ? I18n.get('whitePlayer') : I18n.get('blackPlayer')}`);
+            const winner = result.moveRecord.piece.color === 'w' ? I18n.get('whitePlayer') : I18n.get('blackPlayer');
+            const msg = `${I18n.get('checkmateNotice')} ${I18n.get('winText')} ${winner}`;
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendGameOverCheck({ winner: result.moveRecord.piece.color, reason: msg });
+            }
+            this.endMatch(msg);
         } else if (result && result.isStalemate) {
-            this.endMatch(`${I18n.get('stalemateNotice')}`);
+            const msg = `${I18n.get('stalemateNotice')}`;
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendGameOverCheck({ winner: 'draw', reason: msg });
+            }
+            this.endMatch(msg);
         }
 
         if (onComplete) onComplete();
@@ -1996,6 +2840,10 @@ class GameController {
         if (!this.wolfQueue || this.wolfQueue.length === 0) {
             this.isWolfPromptActive = false;
             this.activeWolfPrompt = null;
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined' && this.activeWolfAdvances && this.activeWolfAdvances.length > 0) {
+                NetworkManager.sendWolfSurge({ wolfAdvances: this.activeWolfAdvances });
+                this.activeWolfAdvances = [];
+            }
             this.finalizeTurn(moveResult);
             return;
         }
@@ -2073,6 +2921,16 @@ class GameController {
                     color: wolfPiece.color, 
                     moved: true, 
                     capturedLastTurn: !!targetPiece 
+                });
+
+                this.activeWolfAdvances = this.activeWolfAdvances || [];
+                this.activeWolfAdvances.push({
+                    fromR: wolfPos.r,
+                    fromC: wolfPos.c,
+                    toR: targetR,
+                    toC: targetC,
+                    color: wolfPiece.color,
+                    captured: !!targetPiece
                 });
 
                 if (targetPiece) {
@@ -2158,11 +3016,12 @@ class GameController {
                     <div id="clock-black" class="timer-badge">${this.formatTime(this.blackTime)}</div>
                 </div>
 
-                <div class="status-banner ${isCheck ? 'status-check' : ''}">
-                    <span class="submode-pill-hud">${submodeBadge}</span> | 
-                    ${isCheck ? `<span data-i18n="checkNotice">${I18n.get('checkNotice')}</span>` : ''}
-                    <span data-i18n="turnText">${I18n.get('turnText')}</span>
-                    <strong>${isWhiteTurn ? I18n.get('whitePlayer') : I18n.get('blackPlayer')}</strong>
+                <div class="status-banner ${isCheck ? 'status-check' : ''}" style="padding: 6px 12px; border-radius: 8px; font-weight: bold; background: ${isWhiteTurn ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.45)'}; border: 1px solid ${isWhiteTurn ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.2)'}; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0;">
+                    <span class="submode-pill-hud">${submodeBadge}</span>
+                    <div style="font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+                        ${isCheck ? `<span style="color: #ef4444; font-weight: 900; animation: pulse 1.5s infinite;">⚠️ ¡JAQUE!</span>` : ''}
+                        <span>${isWhiteTurn ? '⚪ Turno de Blancas' : '⚫ Turno de Negras'}</span>
+                    </div>
                 </div>
 
                 <div class="player-bar ${isWhiteTurn ? 'turn-active' : ''}">
@@ -2181,7 +3040,12 @@ class GameController {
 
                 <div class="game-action-bar">
                     ${undoBtn}
-                    ${this.rulesEngine.isContinental && !this.isGameOver ? `<button id="btn-game-pass-rotate" class="action-btn secondary-btn small-btn">⏭️ Pasar y Rotar</button>` : ''}
+                    <button id="btn-game-options" class="action-btn secondary-btn small-btn">⚙️ Opciones</button>
+                    ${this.rulesEngine.isContinental && !this.isGameOver ? `
+                        <button id="btn-game-pass-rotate" class="action-btn secondary-btn small-btn" 
+                            ${(this.matchOptions?.mode === 'lan' && this.rulesEngine.activeColor !== this.matchOptions?.playerSide) ? 'disabled style="opacity: 0.4; cursor: not-allowed;"' : ''}>
+                            ⏭️ Pasar y Rotar
+                        </button>` : ''}
                     ${!this.isGameOver ? `<button id="btn-game-resign" class="action-btn secondary-btn small-btn" data-i18n="btnResign">${I18n.get('btnResign')}</button>` : ''}
                     ${!this.isGameOver ? `<button id="btn-game-draw" class="action-btn secondary-btn small-btn" data-i18n="btnOfferDraw">${I18n.get('btnOfferDraw')}</button>` : ''}
                     <button id="btn-game-exit" class="action-btn secondary-btn small-btn" data-i18n="btnMenu">${I18n.get('btnMenu')}</button>
@@ -2190,6 +3054,10 @@ class GameController {
         `;
 
         this.hudContainer.innerHTML = hudHtml;
+
+        document.getElementById('btn-game-options')?.addEventListener('click', () => {
+            this.openInGameOptionsModal();
+        });
 
         if (!this.isGameOver) {
             document.getElementById('btn-game-undo')?.addEventListener('click', () => {
@@ -2200,12 +3068,7 @@ class GameController {
             });
 
             document.getElementById('btn-game-resign')?.addEventListener('click', () => {
-                if (this.matchOptions?.mode === 'lan') {
-                    this.showLanConfirmExitModal('resign');
-                } else {
-                    const winner = this.rulesEngine.activeColor === 'w' ? I18n.get('blackPlayer') : I18n.get('whitePlayer');
-                    this.endMatch(`${I18n.get('winText')} ${winner} (${I18n.get('btnResign')})`);
-                }
+                this.exitGame('resign');
             });
 
             document.getElementById('btn-game-draw')?.addEventListener('click', () => {
@@ -2218,15 +3081,199 @@ class GameController {
         }
 
         document.getElementById('btn-game-exit')?.addEventListener('click', () => {
-            if (this.matchOptions?.mode === 'lan' && !this.isGameOver) {
-                this.showLanConfirmExitModal('menu');
-            } else {
-                this.stopClock();
-                document.getElementById('game-over-inspector-bar')?.remove();
-                document.getElementById('game-over-modal')?.remove();
-                MenuController.switchView('main-menu');
+            this.exitGame('menu');
+        });
+    }
+
+    openInGameOptionsModal() {
+        const isLan = this.matchOptions?.mode === 'lan';
+        let unpause = null;
+        if (!isLan && !this.isGameOver) {
+            unpause = this.pauseClockTemporarily(999999);
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay modal-active';
+        modal.id = 'modal-in-game-options';
+        modal.style.zIndex = '99999';
+
+        const isFlipped = this.boardRenderer.flipped;
+
+        modal.innerHTML = `
+            <div class="modal-card animate-pop-in" style="max-width: 360px; padding: 22px; text-align: center; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h3 style="margin: 0; font-size: 1.2rem; color: #fff;">⚙️ Opciones de Partida</h3>
+                    <button class="btn-close-options" style="background: transparent; border: none; color: #9ca3af; font-size: 1.4rem; cursor: pointer;">&times;</button>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; text-align: left;">
+                    <label style="display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; color: #e2e8f0; cursor: pointer;">
+                        <span>🔊 Efectos de Sonido</span>
+                        <input type="checkbox" id="chk-game-sfx" ${typeof AudioManager !== 'undefined' && AudioManager.muted ? '' : 'checked'} style="width: 20px; height: 20px; accent-color: #3b82f6; cursor: pointer;">
+                    </label>
+
+                    <label style="display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; color: #e2e8f0; cursor: pointer;">
+                        <span>🔄 Invertir Tablero</span>
+                        <input type="checkbox" id="chk-game-flip" ${isFlipped ? 'checked' : ''} style="width: 20px; height: 20px; accent-color: #3b82f6; cursor: pointer;">
+                    </label>
+
+                    <label style="display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; color: #38bdf8; cursor: pointer;">
+                        <span>🐞 Modo Debug (Consola)</span>
+                        <input type="checkbox" id="chk-game-debug" ${typeof DebugLogger !== 'undefined' && DebugLogger.enabled ? 'checked' : ''} style="width: 20px; height: 20px; accent-color: #0284c7; cursor: pointer;">
+                    </label>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${!this.isGameOver ? `
+                        <button id="btn-opt-resign" class="action-btn secondary-btn" style="background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; font-weight: bold;">
+                            🏳️ Rendirse
+                        </button>
+                    ` : ''}
+                    <button id="btn-opt-exit-menu" class="action-btn secondary-btn">
+                        🚪 Volver al Menú Principal
+                    </button>
+                    <button id="btn-opt-continue" class="action-btn primary-btn" style="margin-top: 4px;">
+                        ▶️ Continuar Partida
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const closeModal = () => {
+            modal.remove();
+            if (unpause) unpause();
+        };
+
+        modal.querySelector('.btn-close-options')?.addEventListener('click', closeModal);
+        modal.querySelector('#btn-opt-continue')?.addEventListener('click', closeModal);
+
+        modal.querySelector('#chk-game-sfx')?.addEventListener('change', (e) => {
+            if (typeof AudioManager !== 'undefined') {
+                AudioManager.muted = !e.target.checked;
             }
         });
+
+        modal.querySelector('#chk-game-flip')?.addEventListener('change', (e) => {
+            this.boardRenderer.flipped = e.target.checked;
+            this.boardRenderer.render();
+        });
+
+        modal.querySelector('#chk-game-debug')?.addEventListener('change', (e) => {
+            if (typeof DebugLogger !== 'undefined') {
+                DebugLogger.setEnabled(e.target.checked);
+            }
+        });
+
+        modal.querySelector('#btn-opt-resign')?.addEventListener('click', () => {
+            closeModal();
+            this.exitGame('resign');
+        });
+
+        modal.querySelector('#btn-opt-exit-menu')?.addEventListener('click', () => {
+            closeModal();
+            this.exitGame('menu');
+        });
+    }
+
+    /**
+     * Unified exit and surrender handler for ALL game states and UI triggers.
+     * action: 'menu' | 'resign' | 'disconnect'
+     * options: { skipConfirm?: boolean, reason?: string }
+     */
+    exitGame(action = 'menu', options = {}) {
+        const isLan = this.matchOptions?.mode === 'lan';
+        const isOngoingMatch = !this.isGameOver;
+
+        // If LAN match and user initiated exit/resign, require confirmation unless skipConfirm is true
+        if (isLan && isOngoingMatch && !options.skipConfirm && (action === 'menu' || action === 'resign')) {
+            this.showLanConfirmExitModal(action);
+            return;
+        }
+
+        if (action === 'disconnect') {
+            if (this.opponentLeftHandled || this.isGameOver) return;
+            this.handleOpponentLeftOrSurrendered('🏆 ¡Victoria por Desconexión!\nSe ha perdido la conexión con el rival.');
+            return;
+        }
+
+        // Clean up all possible modals, popups, and floating overlays
+        document.getElementById('modal-lan-confirm-exit')?.remove();
+        document.getElementById('modal-in-game-options')?.remove();
+        if (action !== 'disconnect') {
+            document.getElementById('game-over-modal')?.remove();
+        }
+        document.getElementById('game-over-inspector-bar')?.remove();
+        document.getElementById('modal-conn-lost')?.remove();
+        document.getElementById('modal-draft-waiting')?.remove();
+        document.getElementById('modal-draft-verifying')?.remove();
+        document.getElementById('modal-rematch-waiting')?.remove();
+        document.getElementById('modal-rematch-offer')?.remove();
+        this.closeFloatingWaitingBar();
+        this.clearWolfPopup();
+        document.querySelectorAll('.modal-overlay').forEach(el => {
+            if (el.id !== 'match-setup-modal' && el.id !== 'game-over-modal') el.remove();
+        });
+
+        // Stop game clock and mark game as finished
+        this.stopClock();
+        this.isGameOver = true;
+        this.isDrafting = false;
+        this.isReinforcementMode = false;
+
+        // In LAN mode, notify opponent and gracefully disconnect
+        if (isLan && typeof NetworkManager !== 'undefined') {
+            if (isOngoingMatch) {
+                NetworkManager.sendSurrender();
+            }
+            NetworkManager.sendRematchCancel({ reason: 'Jugador abandonó la partida' });
+            setTimeout(() => {
+                NetworkManager.disconnect();
+            }, 250);
+        }
+
+        if (action === 'resign') {
+            const resignMessage = options.reason || 'Te has rendido de la partida.';
+            this.endMatch(resignMessage);
+        } else {
+            // Action 'menu' -> Go to main menu cleanly
+            if (typeof MenuController !== 'undefined') {
+                MenuController.switchView('main-menu');
+            }
+        }
+    }
+
+    handleOpponentLeftOrSurrendered(message) {
+        if (this.opponentLeftHandled) return;
+        this.opponentLeftHandled = true;
+        this.isGameOver = true;
+        this.isDrafting = false;
+        this.isReinforcementMode = false;
+        this.stopClock();
+
+        this.closeDraftWaitingModal();
+        this.closeRematchModals();
+        this.closeBoardInspector();
+        this.closeFloatingWaitingBar();
+        this.clearWolfPopup();
+
+        document.getElementById('modal-draft-choice')?.remove();
+        document.getElementById('modal-draft-waiting')?.remove();
+        document.getElementById('modal-draft-verifying')?.remove();
+        document.getElementById('modal-reinforcement-waiting')?.remove();
+        document.getElementById('modal-draw-request')?.remove();
+        document.getElementById('modal-draw-waiting')?.remove();
+        document.getElementById('modal-conn-lost')?.remove();
+        document.getElementById('modal-lan-confirm-exit')?.remove();
+        document.getElementById('modal-in-game-options')?.remove();
+
+        const mySide = this.matchOptions?.playerSide || 'w';
+        const winnerText = mySide === 'w' ? '¡Ganan las Blancas!' : '¡Ganan las Negras!';
+        const fullMessage = `${message}\n${winnerText}`;
+
+        AudioManager.playVictory();
+        this.endMatch(fullMessage);
     }
 
     showLanConfirmExitModal(actionType) {
@@ -2270,25 +3317,7 @@ class GameController {
 
         modal.querySelector('#btn-confirm-exit-lan')?.addEventListener('click', () => {
             modal.remove();
-            
-            if (typeof NetworkManager !== 'undefined') {
-                NetworkManager.sendSurrender();
-                setTimeout(() => {
-                    NetworkManager.disconnect();
-                }, 300);
-            }
-
-            this.stopClock();
-            document.getElementById('game-over-inspector-bar')?.remove();
-            document.getElementById('game-over-modal')?.remove();
-
-            if (isResign) {
-                this.endMatch('Te has rendido de la partida multijugador.');
-            } else {
-                if (typeof MenuController !== 'undefined') {
-                    MenuController.switchView('main-menu');
-                }
-            }
+            this.exitGame(actionType, { skipConfirm: true });
         });
     }
 
@@ -2492,9 +3521,21 @@ class GameController {
         `;
         document.body.appendChild(overlay);
 
+        if (this.opponentLeftHandled || (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined' && (!NetworkManager.conn || !NetworkManager.conn.open))) {
+            const rematchBtn = overlay.querySelector('#btn-end-rematch');
+            if (rematchBtn) rematchBtn.style.display = 'none';
+        }
+
         document.getElementById('btn-end-rematch')?.addEventListener('click', () => {
             overlay.remove();
-            this.startMatch(this.matchOptions);
+            if (this.matchOptions?.mode === 'lan') {
+                if (typeof NetworkManager !== 'undefined') {
+                    NetworkManager.sendRematchRequest();
+                }
+                this.showRematchWaitingModal();
+            } else {
+                this.startMatch(this.matchOptions);
+            }
         });
 
         document.getElementById('btn-end-view-board')?.addEventListener('click', () => {
@@ -2503,49 +3544,124 @@ class GameController {
         });
 
         document.getElementById('btn-end-menu')?.addEventListener('click', () => {
-            overlay.remove();
-            MenuController.switchView('main-menu');
+            this.exitGame('menu', { skipConfirm: true });
         });
     }
 
-    showGameOverBoardInspector(overlay) {
-        let bar = document.getElementById('game-over-inspector-bar');
-        if (bar) bar.remove();
-
-        bar = document.createElement('div');
-        bar.id = 'game-over-inspector-bar';
-        bar.style.position = 'fixed';
-        bar.style.top = '15px';
-        bar.style.left = '50%';
-        bar.style.transform = 'translateX(-50%)';
-        bar.style.zIndex = '99999';
-        bar.style.background = 'rgba(15, 23, 42, 0.92)';
-        bar.style.backdropFilter = 'blur(10px)';
-        bar.style.border = '1px solid rgba(255, 255, 255, 0.2)';
-        bar.style.borderRadius = '30px';
-        bar.style.padding = '8px 16px';
-        bar.style.boxShadow = '0 8px 25px rgba(0,0,0,0.6)';
-        bar.style.display = 'flex';
-        bar.style.gap = '10px';
-        bar.style.alignItems = 'center';
-
-        bar.innerHTML = `
-            <span style="font-size: 0.85rem; color: #a7f3d0; font-weight: bold;">🔍 Inspeccionando Tablero</span>
-            <button id="btn-reopen-game-over" style="padding: 6px 12px; border-radius: 20px; background: #2563eb; color: white; border: none; font-weight: bold; font-size: 0.8rem; cursor: pointer;">🏆 Ver Resultado</button>
-            <button id="btn-inspector-menu" style="padding: 6px 12px; border-radius: 20px; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.2); font-weight: bold; font-size: 0.8rem; cursor: pointer;">⬅️ Menú</button>
+    showRematchWaitingModal() {
+        this.closeRematchModals();
+        const modal = document.createElement('div');
+        modal.id = 'modal-rematch-waiting';
+        modal.className = 'modal-overlay modal-active';
+        modal.style.zIndex = '9998';
+        modal.innerHTML = `
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(15, 23, 42, 0.95); border: 2px solid rgba(59, 130, 246, 0.5); border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                <div style="font-size: 2.2rem; margin-bottom: 10px;">🔄</div>
+                <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.15rem; margin-bottom: 6px;">Pidiendo Revancha</h3>
+                <p style="font-size: 0.9rem; color: #93c5fd; margin-bottom: 14px;">
+                    Esperando que el rival acepte jugar otra partida...
+                </p>
+                <div class="loading-spinner" style="margin: 0 auto 16px auto; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                
+                <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
+                    <button id="btn-rematch-view-board" class="action-btn secondary-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; font-weight: bold; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff;">
+                        👁️ Mirar Tablero
+                    </button>
+                    <button id="btn-rematch-cancel" class="action-btn secondary-btn" style="flex: 1; padding: 8px; font-size: 0.85rem; font-weight: bold; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5;">
+                        🚪 Cancelar / Menú
+                    </button>
+                </div>
+            </div>
         `;
+        document.body.appendChild(modal);
 
-        document.body.appendChild(bar);
-
-        document.getElementById('btn-reopen-game-over')?.addEventListener('click', () => {
-            bar.remove();
-            overlay.style.display = 'flex';
+        modal.querySelector('#btn-rematch-view-board')?.addEventListener('click', () => {
+            this.openBoardInspector({
+                title: '🔄 Esperando revancha...',
+                modalElement: modal,
+                showResign: true,
+                onResign: () => this.exitGame('menu', { skipConfirm: true })
+            });
         });
 
-        document.getElementById('btn-inspector-menu')?.addEventListener('click', () => {
-            bar.remove();
-            overlay.remove();
-            MenuController.switchView('main-menu');
+        modal.querySelector('#btn-rematch-cancel')?.addEventListener('click', () => {
+            this.exitGame('menu', { skipConfirm: true });
+        });
+    }
+
+    showRematchOfferModal() {
+        this.closeRematchModals();
+        const modal = document.createElement('div');
+        modal.id = 'modal-rematch-offer';
+        modal.className = 'modal-overlay modal-active';
+        modal.style.zIndex = '9999';
+        modal.innerHTML = `
+            <div class="modal-card animate-pop-in" style="text-align: center; padding: 24px; max-width: 360px; background: rgba(15, 23, 42, 0.95); border: 2px solid #3b82f6; border-radius: 14px; box-shadow: 0 10px 40px rgba(59, 130, 246, 0.5);">
+                <div style="font-size: 2.5rem; margin-bottom: 8px;">⚔️</div>
+                <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.2rem; margin-bottom: 8px;">¡Propuesta de Revancha!</h3>
+                <p style="font-size: 0.9rem; color: #93c5fd; line-height: 1.4; margin-bottom: 18px;">
+                    El rival te invita a jugar una nueva partida. ¿Aceptas el desafío?
+                </p>
+                <div style="display: flex; gap: 10px;">
+                    <button id="btn-reject-rematch" class="action-btn secondary-btn" style="flex: 1; padding: 10px; font-weight: bold; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5;">
+                        ❌ Rechazar
+                    </button>
+                    <button id="btn-accept-rematch" class="action-btn primary-btn" style="flex: 1; padding: 10px; font-weight: bold; background: #3b82f6; border: none; color: #fff;">
+                        ✅ ¡Aceptar!
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('#btn-reject-rematch')?.addEventListener('click', () => {
+            this.exitGame('menu', { skipConfirm: true });
+        });
+
+        modal.querySelector('#btn-accept-rematch')?.addEventListener('click', () => {
+            modal.remove();
+            if (typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendRematchConfirm();
+            }
+            const newSide = this.matchOptions.playerSide === 'w' ? 'b' : 'w';
+            this.startMatch({
+                ...this.matchOptions,
+                playerSide: newSide
+            });
+        });
+    }
+
+    closeRematchModals() {
+        document.getElementById('modal-rematch-waiting')?.remove();
+        document.getElementById('modal-rematch-offer')?.remove();
+        this.closeBoardInspector();
+    }
+
+    showRematchCancelledToast(msg) {
+        const toast = document.createElement('div');
+        toast.style.position = 'fixed';
+        toast.style.bottom = '30px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.background = 'rgba(239, 68, 68, 0.95)';
+        toast.style.color = '#fff';
+        toast.style.padding = '10px 20px';
+        toast.style.borderRadius = '20px';
+        toast.style.fontWeight = 'bold';
+        toast.style.fontSize = '0.9rem';
+        toast.style.zIndex = '99999';
+        toast.style.boxShadow = '0 6px 20px rgba(0,0,0,0.5)';
+        toast.textContent = `ℹ️ ${msg}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+
+    showGameOverBoardInspector(overlay) {
+        this.openBoardInspector({
+            title: '🏆 Partida Finalizada',
+            modalElement: overlay,
+            showResign: true,
+            onResign: () => this.exitGame('menu', { skipConfirm: true })
         });
     }
 }
