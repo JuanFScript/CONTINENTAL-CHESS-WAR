@@ -87,7 +87,29 @@ class GameController {
         if (options.mode === 'lan' && typeof NetworkManager !== 'undefined') {
             NetworkManager.onMoveReceived = (moveData) => {
                 if (moveData && moveData.fromR !== undefined) {
-                    this.performRegularMove(moveData.fromR, moveData.fromC, moveData.toR, moveData.toC, moveData.promotionType, true, moveData.facing, moveData.stance);
+                    this.performRegularMove(
+                        moveData.fromR,
+                        moveData.fromC,
+                        moveData.toR,
+                        moveData.toC,
+                        moveData.promotionType,
+                        true,
+                        moveData.facing,
+                        moveData.stance,
+                        moveData.isRanged,
+                        moveData.special,
+                        moveData.pieceType,
+                        moveData.pieceColor
+                    );
+                    if (moveData.compactBoard) {
+                        const fixes = this.boardEngine.syncCompactBoard(moveData.compactBoard);
+                        if (fixes > 0) {
+                            if (typeof DebugLogger !== 'undefined') {
+                                DebugLogger.log('SYNC', `Tablero auto-corregido tras movimiento rival (${fixes} casillas)`);
+                            }
+                            this.boardRenderer.render();
+                        }
+                    }
                     if (moveData.activeColorAfter) {
                         this.rulesEngine.activeColor = moveData.activeColorAfter;
                     }
@@ -99,6 +121,10 @@ class GameController {
             };
 
             NetworkManager.onPassTurnReceived = (data) => {
+                this.selectedSquare = null;
+                this.selectedLegalMoves = [];
+                this.boardRenderer.clearSelection();
+
                 if (data && data.rotatedPiece) {
                     const p = this.boardEngine.getPiece(data.rotatedPiece.r, data.rotatedPiece.c);
                     if (p) {
@@ -107,6 +133,14 @@ class GameController {
                         }
                         if (data.rotatedPiece.stance !== undefined) {
                             p.stance = data.rotatedPiece.stance;
+                        }
+                    }
+                }
+                if (data && data.compactBoard) {
+                    const fixes = this.boardEngine.syncCompactBoard(data.compactBoard);
+                    if (fixes > 0) {
+                        if (typeof DebugLogger !== 'undefined') {
+                            DebugLogger.log('SYNC', `Tablero auto-corregido tras pase de turno rival (${fixes} casillas)`);
                         }
                     }
                 }
@@ -188,6 +222,9 @@ class GameController {
             };
 
             NetworkManager.onGiganteThrowReceived = (data) => {
+                this.selectedSquare = null;
+                this.selectedLegalMoves = [];
+                this.boardRenderer.clearSelection();
                 this.saveStateSnapshot();
                 const { fromR, fromC, targetR, targetC, landingR, landingC } = data;
                 const thrownPiece = this.boardEngine.getPiece(targetR, targetC);
@@ -212,6 +249,13 @@ class GameController {
                     this.boardEngine.setPiece(landingR, landingC, thrownPiece);
                 }
 
+                if (data.compactBoard) {
+                    const fixes = this.boardEngine.syncCompactBoard(data.compactBoard);
+                    if (fixes > 0 && typeof DebugLogger !== 'undefined') {
+                        DebugLogger.log('SYNC', `Tablero auto-corregido tras lanzamiento de Gigante (${fixes} casillas)`);
+                    }
+                }
+
                 if (data.activeColorAfter) {
                     this.rulesEngine.activeColor = data.activeColorAfter;
                 } else {
@@ -226,6 +270,9 @@ class GameController {
             };
 
             NetworkManager.onCanonBeamReceived = (data) => {
+                this.selectedSquare = null;
+                this.selectedLegalMoves = [];
+                this.boardRenderer.clearSelection();
                 this.saveStateSnapshot();
                 const { r, c, facing } = data;
                 const piece = this.boardEngine.getPiece(r, c);
@@ -249,6 +296,13 @@ class GameController {
                     }
                 }
 
+                if (data.compactBoard) {
+                    const fixes = this.boardEngine.syncCompactBoard(data.compactBoard);
+                    if (fixes > 0 && typeof DebugLogger !== 'undefined') {
+                        DebugLogger.log('SYNC', `Tablero auto-corregido tras disparo de Cañón (${fixes} casillas)`);
+                    }
+                }
+
                 if (data.activeColorAfter) {
                     this.rulesEngine.activeColor = data.activeColorAfter;
                 } else {
@@ -263,6 +317,9 @@ class GameController {
             };
 
             NetworkManager.onMagoAttackReceived = (data) => {
+                this.selectedSquare = null;
+                this.selectedLegalMoves = [];
+                this.boardRenderer.clearSelection();
                 this.saveStateSnapshot();
                 const { fromR, fromC, toR, toC, facing, stance } = data;
                 const piece = this.boardEngine.getPiece(fromR, fromC);
@@ -274,6 +331,14 @@ class GameController {
                     if (facing !== undefined && facing !== null) piece.facing = facing;
                     if (stance) piece.stance = stance;
                 }
+
+                if (data.compactBoard) {
+                    const fixes = this.boardEngine.syncCompactBoard(data.compactBoard);
+                    if (fixes > 0 && typeof DebugLogger !== 'undefined') {
+                        DebugLogger.log('SYNC', `Tablero auto-corregido tras hechizo de Mago (${fixes} casillas)`);
+                    }
+                }
+
                 if (data.activeColorAfter) {
                     this.rulesEngine.activeColor = data.activeColorAfter;
                 } else {
@@ -1143,7 +1208,8 @@ class GameController {
                                     stance: piece.stance,
                                     activeColorAfter: this.rulesEngine.activeColor,
                                     whiteTime: this.whiteTime,
-                                    blackTime: this.blackTime
+                                    blackTime: this.blackTime,
+                                    compactBoard: this.boardEngine.getCompactBoard()
                                 });
                             }
                             this.finalizeTurn({ success: true, moveRecord: { piece, captured: targetPiece } });
@@ -1180,25 +1246,42 @@ class GameController {
         this.performRegularMove(fromR, fromC, toR, toC);
     }
 
-    performRegularMove(fromR, fromC, toR, toC, promotionType = null, isRemote = false, remoteFacing = null, remoteStance = null) {
-        const piece = this.boardEngine.getPiece(fromR, fromC);
+    performRegularMove(fromR, fromC, toR, toC, promotionType = null, isRemote = false, remoteFacing = null, remoteStance = null, remoteIsRanged = false, remoteSpecial = null, remotePieceType = null, remotePieceColor = null) {
+        let piece = this.boardEngine.getPiece(fromR, fromC);
+
+        // Auto-heal missing piece on receiver if desynced
+        if (!piece && isRemote && remotePieceType) {
+            piece = {
+                type: remotePieceType,
+                color: remotePieceColor || this.rulesEngine.activeColor,
+                moved: true,
+                facing: remoteFacing ?? 0,
+                stance: remoteStance ?? null
+            };
+            this.boardEngine.setPiece(fromR, fromC, piece);
+            if (typeof DebugLogger !== 'undefined') {
+                DebugLogger.log('SYNC', `Pieza recuperada en (${fromR},${fromC}): [${piece.color}] ${piece.type}`);
+            }
+        }
+
         if (!piece) return;
         const backRank = piece.color === 'w' ? 0 : (this.boardEngine.rows - 1);
         const isContinentalPawn = ['c_peon', 'c_dama', 'c_lobo', 'c_escudero', 'c_guardia'].includes(piece.type);
 
         if ((piece.type === 'p' || isContinentalPawn) && toR === backRank && !promotionType && !isRemote) {
             this.openPromotionModal(piece.color, (selectedType) => {
-                this.performRegularMove(fromR, fromC, toR, toC, selectedType, isRemote, remoteFacing, remoteStance);
+                this.performRegularMove(fromR, fromC, toR, toC, selectedType, isRemote, remoteFacing, remoteStance, remoteIsRanged, remoteSpecial, remotePieceType, remotePieceColor);
             });
             return;
         }
 
         if (typeof DebugLogger !== 'undefined') {
             const tag = isRemote ? 'RED' : 'JUEGO';
-            DebugLogger.log(tag, `Mover [${piece.color}] ${piece.type}: (${fromR},${fromC}) ➔ (${toR},${toC})`);
+            const rangedTag = (remoteIsRanged || (remoteSpecial && (remoteSpecial.isRanged || remoteSpecial.type === 'ranged'))) ? ' [DISPARO]' : '';
+            DebugLogger.log(tag, `Mover [${piece.color}] ${piece.type}: (${fromR},${fromC}) ➔ (${toR},${toC})${rangedTag}`);
         }
 
-        const result = this.rulesEngine.executeMove(fromR, fromC, toR, toC, promotionType, isRemote);
+        const result = this.rulesEngine.executeMove(fromR, fromC, toR, toC, promotionType, isRemote, remoteIsRanged, remoteSpecial);
         if (result && result.success) {
             this.consecutiveNoMovesPasses = 0;
             if (result.moveRecord?.special?.type === 'promotion') {
@@ -1238,18 +1321,24 @@ class GameController {
             const sendMoveNetworkSync = () => {
                 if (!isRemote && this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
                     const currentPiece = this.boardEngine.getPiece(pieceAfterMoveRow, pieceAfterMoveCol);
+                    const isRanged = !!(result.moveRecord?.special?.isRanged || result.moveRecord?.special?.type === 'ranged');
                     NetworkManager.sendMove({
                         fromR,
                         fromC,
                         toR,
                         toC,
                         promotionType,
+                        pieceType: piece.type,
+                        pieceColor: piece.color,
+                        isRanged: isRanged,
+                        special: result.moveRecord?.special || (isRanged ? { type: 'ranged', isRanged: true } : null),
                         facing: currentPiece ? currentPiece.facing : null,
                         stance: currentPiece ? currentPiece.stance : null,
                         activeColorAfter: this.rulesEngine.activeColor,
                         whiteTime: this.whiteTime,
                         blackTime: this.blackTime,
-                        moveNumber: this.rulesEngine.fullMoveNumber
+                        moveNumber: this.rulesEngine.fullMoveNumber,
+                        compactBoard: this.boardEngine.getCompactBoard()
                     });
                 }
             };
@@ -1682,7 +1771,8 @@ class GameController {
                 landingC,
                 activeColorAfter: this.rulesEngine.activeColor,
                 whiteTime: this.whiteTime,
-                blackTime: this.blackTime
+                blackTime: this.blackTime,
+                compactBoard: this.boardEngine.getCompactBoard()
             });
         }
 
@@ -1757,7 +1847,8 @@ class GameController {
                     facing: piece.facing,
                     activeColorAfter: this.rulesEngine.activeColor,
                     whiteTime: this.whiteTime,
-                    blackTime: this.blackTime
+                    blackTime: this.blackTime,
+                    compactBoard: this.boardEngine.getCompactBoard()
                 });
             }
 
@@ -1822,6 +1913,7 @@ class GameController {
                             ${op.symbol} ${op.name} (${this.getSquareCoordLabel(op.r, op.c)})
                         </button>
                     `).join('')}
+                    <button class="action-btn secondary-btn btn-confirm-pass" style="width: 100%; margin-top: 6px;">⏳ Solo Pasar Turno (Sin Rotar)</button>
                 </div>
             `;
         }
@@ -1844,48 +1936,53 @@ class GameController {
             unpause();
         });
 
-        if (myOctoPieces.length === 0) {
-            modal.querySelector('.btn-confirm-pass').addEventListener('click', () => {
+        const handleDirectPass = () => {
+            modal.remove();
+            unpause();
+            this.saveStateSnapshot();
+            const nextColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+            if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                NetworkManager.sendPassTurn({
+                    rotatedPiece: null,
+                    activeColorAfter: nextColor,
+                    whiteTime: this.whiteTime,
+                    blackTime: this.blackTime,
+                    compactBoard: this.boardEngine.getCompactBoard()
+                });
+            }
+            this.rulesEngine.activeColor = nextColor;
+            if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+            this.finalizeTurn({ success: true, moveRecord: { passed: true } });
+        };
+
+        const confirmPassBtn = modal.querySelector('.btn-confirm-pass');
+        if (confirmPassBtn) {
+            confirmPassBtn.addEventListener('click', handleDirectPass);
+        }
+
+        modal.querySelectorAll('.btn-select-pass-rot').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const selected = myOctoPieces[parseInt(btn.dataset.idx, 10)];
                 modal.remove();
                 unpause();
                 this.saveStateSnapshot();
-                const nextColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
-                if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
-                    NetworkManager.sendPassTurn({
-                        rotatedPiece: null,
-                        activeColorAfter: nextColor,
-                        whiteTime: this.whiteTime,
-                        blackTime: this.blackTime
-                    });
-                }
-                this.rulesEngine.activeColor = nextColor;
-                if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
-                this.finalizeTurn({ success: true, moveRecord: { passed: true } });
-            });
-        } else {
-            modal.querySelectorAll('.btn-select-pass-rot').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const selected = myOctoPieces[parseInt(btn.dataset.idx, 10)];
-                    modal.remove();
-                    unpause();
-                    this.saveStateSnapshot();
-                    this.openRotationPopup(selected.r, selected.c, () => {
-                        const nextColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
-                        if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
-                            NetworkManager.sendPassTurn({
-                                rotatedPiece: { r: selected.r, c: selected.c, facing: selected.piece.facing, stance: selected.piece.stance },
-                                activeColorAfter: nextColor,
-                                whiteTime: this.whiteTime,
-                                blackTime: this.blackTime
-                            });
-                        }
-                        this.rulesEngine.activeColor = nextColor;
-                        if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
-                        this.finalizeTurn({ success: true, moveRecord: { piece: selected.piece } });
-                    });
+                this.openRotationPopup(selected.r, selected.c, () => {
+                    const nextColor = this.rulesEngine.activeColor === 'w' ? 'b' : 'w';
+                    if (this.matchOptions?.mode === 'lan' && typeof NetworkManager !== 'undefined') {
+                        NetworkManager.sendPassTurn({
+                            rotatedPiece: { r: selected.r, c: selected.c, facing: selected.piece.facing, stance: selected.piece.stance },
+                            activeColorAfter: nextColor,
+                            whiteTime: this.whiteTime,
+                            blackTime: this.blackTime,
+                            compactBoard: this.boardEngine.getCompactBoard()
+                        });
+                    }
+                    this.rulesEngine.activeColor = nextColor;
+                    if (this.rulesEngine.activeColor === 'w') this.rulesEngine.fullMoveNumber++;
+                    this.finalizeTurn({ success: true, moveRecord: { piece: selected.piece } });
                 });
             });
-        }
+        });
     }
 
     // =========================================================================
@@ -2651,7 +2748,8 @@ class GameController {
                     rotatedPiece: null,
                     activeColorAfter: other,
                     whiteTime: this.whiteTime,
-                    blackTime: this.blackTime
+                    blackTime: this.blackTime,
+                    compactBoard: this.boardEngine.getCompactBoard()
                 });
             }
 

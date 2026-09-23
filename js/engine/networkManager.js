@@ -19,6 +19,8 @@ const NetworkManager = {
     pendingJoinRequests: [],
 
     // Game Event Handlers
+    processedMsgIds: new Set(),
+    msgCounter: 0,
     onMoveReceived: null,
     onPassTurnReceived: null,
     onDraftPickReceived: null,
@@ -427,6 +429,22 @@ const NetworkManager = {
         if (!data) return;
         this.lastReceivedHeartbeat = Date.now();
 
+        // Idempotency: Deduplicate reliable messages with msgId
+        if (data.msgId) {
+            if (!this.processedMsgIds) {
+                this.processedMsgIds = new Set();
+            }
+            if (this.processedMsgIds.has(data.msgId)) {
+                // Redundant copy received (e.g. 2nd or 3rd transmission of reliable burst), safely ignore!
+                return;
+            }
+            this.processedMsgIds.add(data.msgId);
+            if (this.processedMsgIds.size > 300) {
+                const oldest = this.processedMsgIds.values().next().value;
+                this.processedMsgIds.delete(oldest);
+            }
+        }
+
         if (data.type !== 'PING' && data.type !== 'PONG' && typeof DebugLogger !== 'undefined') {
             DebugLogger.log('RED', `Recibido [${data.type}]`);
         }
@@ -566,18 +584,50 @@ const NetworkManager = {
         }
     },
 
+    sendReliable(payload) {
+        if (!this.conn || !this.conn.open) return;
+
+        if (!payload.msgId) {
+            this.msgCounter = (this.msgCounter || 0) + 1;
+            const peerPrefix = this.peerId ? this.peerId.slice(-4) : 'p';
+            payload.msgId = `${peerPrefix}_${Date.now()}_${this.msgCounter}_${Math.random().toString(36).substr(2, 4)}`;
+        }
+
+        // 1st transmission (immediate)
+        this.conn.send(payload);
+
+        // 2nd transmission (+60ms redundancy burst)
+        setTimeout(() => {
+            if (this.conn && this.conn.open) {
+                this.conn.send(payload);
+            }
+        }, 60);
+
+        // 3rd transmission (+150ms redundancy burst)
+        setTimeout(() => {
+            if (this.conn && this.conn.open) {
+                this.conn.send(payload);
+            }
+        }, 150);
+    },
+
     sendMove(moveData) {
         if (this.conn && this.conn.open) {
             if (typeof DebugLogger !== 'undefined') {
-                DebugLogger.log('RED', `Enviando [MOVE]: (${moveData?.fromR},${moveData?.fromC}) ➔ (${moveData?.toR},${moveData?.toC})`);
+                const rangedTag = moveData?.isRanged ? ' [DISPARO]' : '';
+                DebugLogger.log('RED', `Enviando [MOVE]: (${moveData?.fromR},${moveData?.fromC}) ➔ (${moveData?.toR},${moveData?.toC})${rangedTag}`);
             }
-            this.conn.send({ type: 'MOVE', move: moveData });
+            this.sendReliable({ type: 'MOVE', move: moveData });
         }
     },
 
     sendPassTurn(data) {
         if (this.conn && this.conn.open) {
-            this.conn.send({ type: 'PASS_TURN', ...data });
+            if (typeof DebugLogger !== 'undefined') {
+                const rotText = data?.rotatedPiece ? ` (Rotando en ${data.rotatedPiece.r},${data.rotatedPiece.c} a ${data.rotatedPiece.facing}°)` : ' (Solo pasar)';
+                DebugLogger.log('RED', `Enviando [PASS_TURN]${rotText}`);
+            }
+            this.sendReliable({ type: 'PASS_TURN', ...data });
         }
     },
 
@@ -607,7 +657,7 @@ const NetworkManager = {
 
     sendGameOverCheck(payload) {
         if (this.conn && this.conn.open) {
-            this.conn.send({ type: 'GAME_OVER_CHECK', ...payload });
+            this.sendReliable({ type: 'GAME_OVER_CHECK', ...payload });
         }
     },
 
@@ -649,25 +699,25 @@ const NetworkManager = {
 
     sendGiganteThrow(payload) {
         if (this.conn && this.conn.open) {
-            this.conn.send({ type: 'GIGANTE_THROW', ...payload });
+            this.sendReliable({ type: 'GIGANTE_THROW', ...payload });
         }
     },
 
     sendCanonBeam(payload) {
         if (this.conn && this.conn.open) {
-            this.conn.send({ type: 'CANON_BEAM', ...payload });
+            this.sendReliable({ type: 'CANON_BEAM', ...payload });
         }
     },
 
     sendMagoAttack(payload) {
         if (this.conn && this.conn.open) {
-            this.conn.send({ type: 'MAGO_ATTACK', ...payload });
+            this.sendReliable({ type: 'MAGO_ATTACK', ...payload });
         }
     },
 
     sendWolfSurge(payload) {
         if (this.conn && this.conn.open) {
-            this.conn.send({ type: 'WOLF_SURGE', ...payload });
+            this.sendReliable({ type: 'WOLF_SURGE', ...payload });
         }
     },
 
@@ -679,13 +729,13 @@ const NetworkManager = {
 
     sendReinforcementPlace(payload) {
         if (this.conn && this.conn.open) {
-            this.conn.send({ type: 'REINFORCEMENT_PLACE', ...payload });
+            this.sendReliable({ type: 'REINFORCEMENT_PLACE', ...payload });
         }
     },
 
     sendReinforcementDone(payload) {
         if (this.conn && this.conn.open) {
-            this.conn.send({ type: 'REINFORCEMENT_DONE', ...payload });
+            this.sendReliable({ type: 'REINFORCEMENT_DONE', ...payload });
         }
     },
 
@@ -709,6 +759,8 @@ const NetworkManager = {
 
     disconnect() {
         this.stopHeartbeat();
+        if (this.processedMsgIds) this.processedMsgIds.clear();
+        this.msgCounter = 0;
         if (this.hostBroadcastInterval) {
             clearInterval(this.hostBroadcastInterval);
             this.hostBroadcastInterval = null;

@@ -235,14 +235,23 @@ class RulesEngine {
     /**
      * Execute turn move
      */
-    executeMove(fromR, fromC, toR, toC, promotionType = null, isRemote = false) {
-        const piece = this.board.getPiece(fromR, fromC);
+    executeMove(fromR, fromC, toR, toC, promotionType = null, isRemote = false, remoteIsRanged = false, remoteSpecial = null) {
+        let piece = this.board.getPiece(fromR, fromC);
         if (!piece) {
             if (typeof DebugLogger !== 'undefined') DebugLogger.log('ERROR', `executeMove: No hay pieza en (${fromR}, ${fromC})`);
             return false;
         }
 
-        const legalMoves = this.getLegalMoves(fromR, fromC);
+        let legalMoves = [];
+        if (piece.color === this.activeColor) {
+            legalMoves = this.getLegalMoves(fromR, fromC);
+        } else if (isRemote) {
+            const oldColor = this.activeColor;
+            this.activeColor = piece.color;
+            legalMoves = this.getLegalMoves(fromR, fromC);
+            this.activeColor = oldColor;
+        }
+
         let targetMove = legalMoves.find(m => m.r === toR && m.c === toC);
 
         if (!targetMove) {
@@ -258,9 +267,11 @@ class RulesEngine {
         }
         let special = null;
 
-        // Check Ranged Snipe Move
-        if (targetMove.isRanged) {
+        // Check Ranged Snipe Move (either from legalMoves targetMove or explicitly transmitted remotely)
+        if (targetMove.isRanged || remoteIsRanged || (remoteSpecial && (remoteSpecial.isRanged || remoteSpecial.type === 'ranged'))) {
             special = { type: 'ranged', isRanged: true };
+        } else if (remoteSpecial) {
+            special = remoteSpecial;
         }
 
         // Check Pawn Double Step -> Set En Passant Target (only non-continental)

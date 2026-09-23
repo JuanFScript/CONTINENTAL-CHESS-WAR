@@ -74,6 +74,68 @@ class BoardEngine {
     }
 
     /**
+     * Get an array of non-empty squares for network state synchronization
+     */
+    getCompactBoard() {
+        const compact = [];
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const p = this.grid[r][c];
+                if (p) {
+                    compact.push({
+                        r,
+                        c,
+                        type: p.type,
+                        color: p.color,
+                        facing: p.facing ?? 0,
+                        stance: p.stance ?? null,
+                        moved: p.moved ?? false
+                    });
+                }
+            }
+        }
+        return compact;
+    }
+
+    /**
+     * Synchronize board grid with remote compact board snapshot
+     * Returns the count of corrected squares
+     */
+    syncCompactBoard(compactList) {
+        if (!compactList || !Array.isArray(compactList)) return 0;
+        const expected = new Map();
+        compactList.forEach(p => expected.set(`${p.r},${p.c}`, p));
+
+        let corrections = 0;
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const key = `${r},${c}`;
+                const actual = this.grid[r][c];
+                const exp = expected.get(key);
+
+                if (exp) {
+                    if (!actual || actual.type !== exp.type || actual.color !== exp.color || actual.facing !== exp.facing || actual.stance !== exp.stance) {
+                        this.grid[r][c] = {
+                            type: exp.type,
+                            color: exp.color,
+                            facing: exp.facing ?? 0,
+                            stance: exp.stance ?? null,
+                            moved: exp.moved ?? true
+                        };
+                        corrections++;
+                    }
+                } else {
+                    if (actual) {
+                        this.grid[r][c] = null;
+                        corrections++;
+                    }
+                }
+            }
+        }
+        return corrections;
+    }
+
+    /**
      * Setup Continental Board for Turn-by-Turn Draft
      * Starts with an empty board (7x7) ready for sequential piece drafting.
      */
