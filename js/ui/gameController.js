@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CONTINENTAL - Game Controller
  * Controls live chess match flow, touch interactions, dual clock timers, AI turns, and end conditions.
  */
@@ -1520,7 +1520,7 @@ class GameController {
             { angle: getVisAngle(0),   label: '⬆ N' },
             { angle: getVisAngle(45),  label: '↗ NE' },
             { angle: getVisAngle(270), label: '⬅ W' },
-            { angle: piece.facing || (piece.color === 'w' ? 0 : 180), label: '🔄 Mantener' },
+            { angle: piece.facing ?? (piece.color === 'w' ? 0 : 180), label: '🔄 Mantener' },
             { angle: getVisAngle(90),  label: '➡ E' },
             { angle: getVisAngle(225), label: '↙ SW' },
             { angle: getVisAngle(180), label: '⬇ S' },
