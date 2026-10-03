@@ -531,12 +531,20 @@ class GameController {
         const lang = typeof I18n !== 'undefined' ? I18n.currentLang : 'es';
         const pieceName = reg ? (reg.name[lang] || reg.name.es) : piece.type;
 
-        // Get enemy piece legal moves
+        // Determine if the clicked piece belongs to the local player (Ally) or opponent (Enemy)
+        let isAlly = false;
+        if (this.matchOptions && this.matchOptions.mode === 'lan') {
+            isAlly = (piece.color === this.matchOptions.playerSide);
+        } else {
+            isAlly = (piece.color === this.rulesEngine.activeColor);
+        }
+
+        // Get piece legal moves for gray preview overlay
         const enemyMoves = this.rulesEngine.getLegalMoves(r, c, piece.color);
 
         this.selectedSquare = null;
         this.selectedLegalMoves = [];
-        this.boardRenderer.setEnemySelected({ r, c }, enemyMoves, pieceName);
+        this.boardRenderer.setEnemySelected({ r, c }, enemyMoves, pieceName, isAlly);
     }
 
     // =========================================================================

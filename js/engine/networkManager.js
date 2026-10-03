@@ -434,6 +434,25 @@ const NetworkManager = {
             if (!this.processedMsgIds) {
                 this.processedMsgIds = new Set();
             }
+
+            // If it's an ACK response, handle confirmation and stop retransmissions
+            if (data.type === 'ACK') {
+                if (data.ackMsgId && this.pendingReliableAcks) {
+                    const pending = this.pendingReliableAcks.get(data.ackMsgId);
+                    if (pending) {
+                        if (pending.timer) clearTimeout(pending.timer);
+                        this.pendingReliableAcks.delete(data.ackMsgId);
+                        if (typeof DebugLogger !== 'undefined') {
+                            DebugLogger.log('RED', `[ACK recibido para ${data.ackMsgId.slice(-6)}]`);
+                        }
+                    }
+                }
+                return;
+            }
+
+            // For all non-ACK incoming reliable messages, send ACK 3x burst back to sender!
+            this.sendAckBurst(data.msgId);
+
             if (this.processedMsgIds.has(data.msgId)) {
                 // Redundant copy received (e.g. 2nd or 3rd transmission of reliable burst), safely ignore!
                 return;
@@ -584,13 +603,49 @@ const NetworkManager = {
         }
     },
 
-    sendReliable(payload) {
+    pendingReliableAcks: new Map(),
+
+    sendAckBurst(msgId) {
+        if (!this.conn || !this.conn.open || !msgId) return;
+        const ackPayload = { type: 'ACK', ackMsgId: msgId };
+        
+        // Send ACK 3x burst (0ms, 40ms, 100ms) to ensure receiving device confirms reliably
+        this.conn.send(ackPayload);
+        setTimeout(() => { if (this.conn && this.conn.open) this.conn.send(ackPayload); }, 40);
+        setTimeout(() => { if (this.conn && this.conn.open) this.conn.send(ackPayload); }, 100);
+    },
+
+    sendReliable(payload, retryAttempt = 0) {
         if (!this.conn || !this.conn.open) return;
 
         if (!payload.msgId) {
             this.msgCounter = (this.msgCounter || 0) + 1;
             const peerPrefix = this.peerId ? this.peerId.slice(-4) : 'p';
             payload.msgId = `${peerPrefix}_${Date.now()}_${this.msgCounter}_${Math.random().toString(36).substr(2, 4)}`;
+        }
+
+        if (!this.pendingReliableAcks) {
+            this.pendingReliableAcks = new Map();
+        }
+
+        // Register pending ACK listener
+        if (retryAttempt === 0) {
+            const timer = setTimeout(() => {
+                const pending = this.pendingReliableAcks.get(payload.msgId);
+                if (pending && pending.attempts < 3) {
+                    pending.attempts++;
+                    if (typeof DebugLogger !== 'undefined') {
+                        DebugLogger.log('RED', `[Re-enviando por falta de ACK]: ${payload.type}`);
+                    }
+                    this.sendReliable(payload, pending.attempts);
+                }
+            }, 600);
+
+            this.pendingReliableAcks.set(payload.msgId, {
+                payload,
+                attempts: 0,
+                timer
+            });
         }
 
         // 1st transmission (immediate)

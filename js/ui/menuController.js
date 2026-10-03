@@ -54,6 +54,14 @@ const MenuController = {
                 <button class="btn-close-changelog" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.1em; display: flex; align-items: center; justify-content: center; z-index: 10; transition: background 0.2s;">✖</button>
                 <h2 style="color: #ffd700; margin-top: 0; margin-bottom: 20px; font-size: 1.5em; text-align: center; position: sticky; top: -25px; background: rgba(13,42,32,0.95); padding: 15px 0 10px 0; z-index: 5;">📜 Historial de Actualizaciones</h2>
                 
+                <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 85.2</h3>
+                <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Confirmación de Red (ACK 3x):</strong> Doble confirmación y triple envío de recepción para máxima confiabilidad LAN.</li>
+                    <li style="margin-bottom: 8px;"><strong>Etiqueta Aliado/Enemigo:</strong> Tocar piezas fuera de turno en LAN distingue entre piezas propias y rivales.</li>
+                    <li style="margin-bottom: 8px;"><strong>Previsualización Gris Local:</strong> Tocar piezas en partidas locales ahora muestra sus movimientos posibles en gris.</li>
+                    <li style="margin-bottom: 8px;"><strong>Actualización de Piezas Realistas:</strong> Set fotorrealista completo sin pedestales.</li>
+                </ul>
+
                 <h3 style="color: #60a5fa; margin-bottom: 10px; font-size: 1.2em; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Versión 85</h3>
                 <ul style="color: #ddd; font-size: 0.95em; line-height: 1.5; padding-left: 20px; margin-bottom: 20px;">
                     <li style="margin-bottom: 8px;"><strong>Modo LAN Funcional:</strong> Se implementó un lobby completo para red local. Permite unirse con nombre personalizado, crear salas con nombres generados, ver jugadores en espera, y gestionar solicitudes de entrada mediante cupos.</li>

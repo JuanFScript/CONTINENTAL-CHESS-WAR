@@ -141,8 +141,10 @@ class BoardRenderer {
                     imgEl.alt = `${piece.color} ${piece.type}`;
                     imgEl.src = tex.src;
 
-                    // Rotate piece image texture 180 deg on Black's turn if auto-rotate is enabled (Pass & Play on 1 device)
-                    const autoRotateBlack = localStorage.getItem('continental_auto_rotate_black') !== 'false';
+                    // Rotate piece image texture 180 deg on Black's turn ONLY for Pass & Play on 1 device if option is explicitly enabled
+                    const isLanMatch = (typeof window !== 'undefined' && window.gameController && window.gameController.isLanMatch);
+                    const isAiMatch = (typeof window !== 'undefined' && window.gameController && window.gameController.matchOptions && window.gameController.matchOptions.vsAi);
+                    const autoRotateBlack = !isLanMatch && !isAiMatch && (localStorage.getItem('continental_auto_rotate_black') === 'true');
                     const activeColor = this.getActiveColor();
                     const shouldRotate = !this.flipped && autoRotateBlack && (activeColor === 'b');
                     if (shouldRotate) {
@@ -191,11 +193,13 @@ class BoardRenderer {
 
         this.container.appendChild(boardGrid);
 
-        // Toast overlay for Enemy Piece Info
+        // Toast overlay for Piece Info Preview (Ally / Enemy)
         if (this.enemySelectedSquare && this.enemyPieceName) {
             const toast = document.createElement('div');
             toast.className = 'board-enemy-info-toast';
-            toast.innerHTML = `👁️ <span class="enemy-toast-name">${this.enemyPieceName}</span> <span class="enemy-toast-tag">(Enemigo)</span>`;
+            const tagText = this.enemyIsAlly ? '(Aliado)' : '(Enemigo)';
+            const tagClass = this.enemyIsAlly ? 'ally-toast-tag' : 'enemy-toast-tag';
+            toast.innerHTML = `👁️ <span class="enemy-toast-name">${this.enemyPieceName}</span> <span class="${tagClass}">${tagText}</span>`;
             this.container.appendChild(toast);
         }
     }
@@ -308,13 +312,18 @@ class BoardRenderer {
         this.render();
     }
 
-    setEnemySelected(square, moves = [], pieceName = '') {
+    setEnemySelected(square, moves = [], pieceName = '', isAlly = false) {
         this.selectedSquare = null;
         this.validMoves = [];
         this.enemySelectedSquare = square;
         this.enemyValidMoves = moves;
         this.enemyPieceName = pieceName;
+        this.enemyIsAlly = !!isAlly;
         this.render();
+    }
+
+    setPreviewSelected(square, moves = [], pieceName = '', isAlly = false) {
+        this.setEnemySelected(square, moves, pieceName, isAlly);
     }
 
     setLastMove(move) {

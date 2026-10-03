@@ -1617,4 +1617,37 @@ html, body {
     color: var(--accent-primary, #10b981);
 }
 
+/* Changelog Button & Mobile Positioning */
+.btn-changelog-trigger {
+    position: absolute;
+    bottom: 15px;
+    left: 15px;
+    z-index: 1000;
+    transition: transform 0.2s ease;
+}
+
+.btn-changelog-trigger:active {
+    transform: scale(0.95);
+}
+
+@media (max-width: 600px) {
+    .btn-changelog-trigger {
+        bottom: 10px !important;
+        left: 10px !important;
+        padding: 6px 10px !important;
+        font-size: 0.82rem !important;
+    }
+}
+
+.ally-toast-tag {
+    color: #34d399;
+    font-weight: bold;
+}
+
+.enemy-toast-tag {
+    color: #f87171;
+    font-weight: bold;
+}
+
+
 
